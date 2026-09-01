@@ -59,6 +59,19 @@ export async function parseCsatPdf(file) {
     const textContent = await page.getTextContent()
     const items = textContent.items
 
+    // 🔍 핵심 디버그: PDF.js가 실제로 텍스트를 추출했는지 확인
+    console.log(`[CSAT Parser] 페이지 ${pageNum}: textContent.items 수 = ${items.length}, viewport rotation = ${viewport.rotation}, scale = ${viewport.scale}`)
+    if (pageNum === 1) {
+      // 1페이지의 처음 30개 텍스트 아이템 전체 출력 (str, transform)
+      const sample = items.slice(0, 30).map((it, idx) => ({
+        idx,
+        str: it.str,
+        tx: it.transform?.[4],
+        ty: it.transform?.[5]
+      }))
+      console.log('[CSAT Parser] 1페이지 처음 30개 텍스트 아이템:', JSON.stringify(sample, null, 2))
+    }
+
     // 저장 일시 추출 (미발견 시 다음 페이지에서도 계속 탐색)
     if (!batchTime) {
       batchTime = extractBatchTime(items, viewport)
@@ -70,6 +83,7 @@ export async function parseCsatPdf(file) {
     // 전략 2: 만약 전략 1이 0건이면 행 클러스터링 기반 파싱으로 폴백
     if (pageRecords.length === 0) {
       const rows = groupTextItemsToRows(items, viewport)
+      console.log(`[CSAT Parser] 페이지 ${pageNum} 전략1 실패 → 전략2 행 클러스터링: ${rows.length}개 행`)
       for (const row of rows) {
         const record = parseRecordFromRow(row)
         if (record) {
