@@ -59,40 +59,34 @@ export async function parseCsatPdf(file) {
     const textContent = await page.getTextContent()
     const items = textContent.items
 
-    // 🔍 핵심 디버그: PDF.js가 실제로 텍스트를 추출했는지 확인
-    console.log(`[CSAT Parser] 페이지 ${pageNum}: textContent.items 수 = ${items.length}, viewport rotation = ${viewport.rotation}, scale = ${viewport.scale}`)
-    if (pageNum === 1) {
-      // 1페이지의 처음 30개 텍스트 아이템 전체 출력 (str, transform)
-      const sample = items.slice(0, 30).map((it, idx) => ({
-        idx,
-        str: it.str,
-        tx: it.transform?.[4],
-        ty: it.transform?.[5]
-      }))
-      console.log('[CSAT Parser] 1페이지 처음 30개 텍스트 아이템:', JSON.stringify(sample, null, 2))
-    }
+    console.log(`[CSAT Parser] 페이지 ${pageNum}: items=${items.length}, rotation=${viewport.rotation}`)
 
     // 저장 일시 추출 (미발견 시 다음 페이지에서도 계속 탐색)
     if (!batchTime) {
       batchTime = extractBatchTime(items, viewport)
     }
 
-    // 전략 1: 토큰 스트림 경계 기반 파싱 (가장 강력하고 회전/줄바꿈에 영향 없음)
-    let pageRecords = parseRecordsFromPageTokens(items, viewport)
+    // ★ 핵심: 글자 단위 PDF → 단어 재조립 후 토큰 스트림 파싱
+    const rowTexts = reassembleCharacters(items, viewport)
+    if (pageNum === 1) {
+      console.log('[CSAT Parser] 1페이지 재조립 행(처음 5줄):', rowTexts.slice(0, 5))
+    }
 
-    // 전략 2: 만약 전략 1이 0건이면 행 클러스터링 기반 파싱으로 폴백
+    let pageRecords = parseRecordsFromReassembledRows(rowTexts)
+
+    // 폴백: 재조립 실패 시 기존 토큰 스트림/행 클러스터링
+    if (pageRecords.length === 0) {
+      pageRecords = parseRecordsFromPageTokens(items, viewport)
+    }
     if (pageRecords.length === 0) {
       const rows = groupTextItemsToRows(items, viewport)
-      console.log(`[CSAT Parser] 페이지 ${pageNum} 전략1 실패 → 전략2 행 클러스터링: ${rows.length}개 행`)
       for (const row of rows) {
         const record = parseRecordFromRow(row)
-        if (record) {
-          pageRecords.push(record)
-        }
+        if (record) pageRecords.push(record)
       }
     }
 
-    console.log(`[CSAT Parser] ${pageNum}/${totalPages}페이지 파싱: ${pageRecords.length}명 추출됨`)
+    console.log(`[CSAT Parser] ${pageNum}/${totalPages}페이지: ${pageRecords.length}명`)
     allRecords.push(...pageRecords)
   }
 
@@ -117,6 +111,150 @@ export async function parseCsatPdf(file) {
     enrolledCount: stats.enrolledCount,
     gradCount: stats.graduatedCount
   }
+}
+
+/**
+ * ★ 핵심 함수: 글자 단위(character-level) PDF의 개별 문자 아이템들을
+ *   X좌표 근접성 기반으로 단어/토큰으로 재조립합니다.
+ *   정부 시스템 PDF(수능접수시스템 등)는 각 글자를 별도 텍스트 아이템으로 출력하므로 필수.
+ * @returns {string[]} 재조립된 행 텍스트 배열 (상단→하단 순서)
+ */
+function reassembleCharacters(items, viewport) {
+  if (!items || items.length === 0) return []
+
+  const charItems = []
+  for (const item of items) {
+    if (item.str === undefined || item.str === null) continue
+    if (item.str.length === 0) continue
+
+    const tx = item.transform[4]
+    const ty = item.transform[5]
+    let screenX = tx
+    let screenY = ty
+    if (viewport && typeof viewport.convertToViewportPoint === 'function') {
+      const pt = viewport.convertToViewportPoint(tx, ty)
+      screenX = pt[0]
+      screenY = pt[1]
+    }
+
+    // 폰트 크기 추출 (transform 매트릭스에서)
+    const fontSize = Math.abs(item.transform[0]) || Math.abs(item.transform[3]) || 10
+
+    charItems.push({
+      str: item.str,
+      x: screenX,
+      y: screenY,
+      width: item.width || 0,
+      fontSize
+    })
+  }
+
+  // Y좌표 기준 정렬 (상단→하단), 같은 행이면 X 기준 (좌→우)
+  charItems.sort((a, b) => {
+    if (Math.abs(a.y - b.y) <= 4) return a.x - b.x
+    return a.y - b.y
+  })
+
+  // Y좌표 클러스터링으로 행 그룹핑 (tolerance 5pt)
+  const rows = []
+  const yTol = 5
+  for (const ch of charItems) {
+    let matched = null
+    for (const r of rows) {
+      if (Math.abs(r.avgY - ch.y) <= yTol) {
+        matched = r
+        break
+      }
+    }
+    if (matched) {
+      matched.items.push(ch)
+      matched.avgY = (matched.avgY * (matched.items.length - 1) + ch.y) / matched.items.length
+    } else {
+      rows.push({ avgY: ch.y, items: [ch] })
+    }
+  }
+
+  // 각 행 내에서 인접 문자를 단어로 병합
+  const result = []
+  for (const row of rows.sort((a, b) => a.avgY - b.avgY)) {
+    const sorted = row.items.sort((a, b) => a.x - b.x)
+    let text = ''
+
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0) {
+        const prev = sorted[i - 1]
+        const curr = sorted[i]
+
+        // 이전 아이템의 유효 너비 계산
+        let prevWidth = prev.width
+        if (!prevWidth || prevWidth <= 0.1) {
+          // 폰트 크기 기반 추정: CJK ≈ fontSize, 숫자/영문 ≈ fontSize * 0.6
+          const ch = prev.str
+          if (ch.length === 1 && ch.charCodeAt(0) > 0x2E80) {
+            prevWidth = prev.fontSize * 0.95
+          } else if (ch === ' ') {
+            prevWidth = prev.fontSize * 0.25
+          } else {
+            prevWidth = prev.str.length * prev.fontSize * 0.55
+          }
+        }
+
+        // 실질 간격 = 다음 문자 X위치 - (이전 문자 X위치 + 이전 문자 너비)
+        const gap = curr.x - (prev.x + prevWidth)
+
+        // 간격이 폰트 크기의 30% 이상이면 단어/컬럼 경계 → 공백 삽입
+        if (gap > Math.max(3, prev.fontSize * 0.3)) {
+          text += ' '
+        }
+      }
+      text += sorted[i].str
+    }
+
+    const trimmed = text.trim()
+    if (trimmed) result.push(trimmed)
+  }
+
+  return result
+}
+
+/**
+ * 재조립된 행 텍스트에서 [일련번호, 접수번호] 경계 기준으로 레코드 추출
+ */
+function parseRecordsFromReassembledRows(rowTexts) {
+  if (!rowTexts || rowTexts.length === 0) return []
+
+  // 전체 행을 하나의 토큰 스트림으로 평탄화
+  const allTokens = []
+  for (const rowText of rowTexts) {
+    const tokens = rowText.split(/\s+/).filter(Boolean)
+    allTokens.push(...tokens)
+  }
+
+  // [연번(1~4자리), 접수번호(5~8자리)] 시작 인덱스 탐색
+  const markers = []
+  for (let i = 0; i < allTokens.length - 1; i++) {
+    const t1 = allTokens[i]
+    const t2 = allTokens[i + 1]
+    if (/^\d{1,4}$/.test(t1) && /^\d{5,8}$/.test(t2)) {
+      const seqNo = parseInt(t1, 10)
+      if (seqNo >= 1 && seqNo <= 9999) {
+        markers.push({ idx: i, seqNo, receiptNo: t2 })
+      }
+    }
+  }
+
+  if (markers.length === 0) return []
+
+  const records = []
+  for (let m = 0; m < markers.length; m++) {
+    const current = markers[m]
+    const nextIdx = (m < markers.length - 1) ? markers[m + 1].idx : allTokens.length
+    const columns = allTokens.slice(current.idx + 2, nextIdx)
+    const rec = parseColumnsFromTokens(current.seqNo, current.receiptNo, columns)
+    if (rec) records.push(rec)
+  }
+
+  return records
 }
 
 /**
