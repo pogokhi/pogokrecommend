@@ -406,7 +406,7 @@
                   <input type="radio" v-model="rosterType" value="no_take" class="mt-0.5 text-amber-600" />
                   <div>
                     <p class="text-xs font-bold text-amber-800">🚫 수능 미응시자 명단 대장</p>
-                    <p class="text-[11px] text-amber-600 mt-0.5">수능 미응시 선택 학생 목록</p>
+                    <p class="text-[11px] text-amber-600 mt-0.5">전체 재학생 중 업로드된 접수대장 PDF에 없는 학생</p>
                   </div>
                 </label>
                 <label :class="['border rounded-xl p-3 flex items-start gap-2.5 cursor-pointer transition-all', rosterType === 'no_apply' ? 'border-purple-500 bg-purple-50/50 ring-1 ring-purple-500' : 'border-slate-200 hover:bg-slate-50']">
@@ -558,7 +558,8 @@ const rosterFilteredList = computed(() => {
   if (rosterType.value === 'mismatch') {
     list = list.filter(r => isMismatch(r))
   } else if (rosterType.value === 'no_take') {
-    list = list.filter(r => r.has_survey && r.csat_intent === 'NO_TAKE')
+    // 전체 재학생 중 업로드된 수능 접수대장 PDF에 등록되지 않은 학생
+    list = list.filter(r => r.is_enrolled !== false && !r.csat_registered)
   } else if (rosterType.value === 'no_apply') {
     list = list.filter(r => hasStudentNoApply(r))
   } else if (rosterType.value === 'no_survey') {
