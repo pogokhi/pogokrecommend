@@ -104,7 +104,7 @@ export async function parseCsatPdf(file) {
 
   // 통계 계산
   const stats = computeStats(finalRecords)
-  console.log(`[CSAT Parser] 파싱 완료: 총 ${finalRecords.length}명 (재학생: ${stats.enrolledCount}명, 졸업생: ${stats.graduatedCount}명)`)
+  console.log(`[CSAT Parser] 파싱 완료: 총 ${finalRecords.length}명 (재학생: ${stats.enrolledCount}명, 졸업생: ${stats.graduatedCount}명), PDF 저장일시: ${batchTime || '미추출'}`)
 
   return {
     records: finalRecords,
@@ -122,10 +122,27 @@ export async function parseCsatPdf(file) {
 function extractBatchTime(rowTexts) {
   if (!rowTexts || rowTexts.length === 0) return null
   for (const text of rowTexts) {
-    const m = text.match(/(\d{4}[-.]\d{2}[-.]\d{2}\s+\d{2}:\d{2}:\d{2})/)
-    if (m) return m[1].replace(/\./g, '-')
-    const m2 = text.match(/(\d{4}[-.]\d{2}[-.]\d{2}\s+\d{2}:\d{2})/)
-    if (m2) return `${m2[1].replace(/\./g, '-')}:00`
+    // 1. 표준 YYYY-MM-DD HH:mm:ss 또는 YYYY.MM.DD HH:mm:ss
+    const m1 = text.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})\s+(\d{1,2}:\d{2}:\d{2})/)
+    if (m1) {
+      const datePart = m1[1].replace(/[./]/g, '-')
+      return `${datePart} ${m1[2]}`
+    }
+
+    // 2. YYYY-MM-DD HH:mm (초 생략)
+    const m2 = text.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})\s+(\d{1,2}:\d{2})/)
+    if (m2) {
+      const datePart = m2[1].replace(/[./]/g, '-')
+      return `${datePart} ${m2[2]}:00`
+    }
+
+    // 3. 공백 없이 붙은 경우 (예: 2026-09-0116:03:00)
+    const m3 = text.match(/(\d{4}[-./]\d{1,2}[-./]\d{1,2})(\d{2}:\d{2}(?::\d{2})?)/)
+    if (m3) {
+      const datePart = m3[1].replace(/[./]/g, '-')
+      const timePart = m3[2].length === 5 ? `${m3[2]}:00` : m3[2]
+      return `${datePart} ${timePart}`
+    }
   }
   return null
 }

@@ -1153,27 +1153,51 @@ GRANT ALL ON TABLE public.csat_registration_records TO anon, authenticated, serv
 
 
 -- ================================================================
--- 23. STUDENT_INTENT_SURVEYS (학생 수능 미응시 및 수시 미접수 자가 조사 원장)
+-- 23. STUDENT_INTENT_SURVEYS (학생 수능 미응시 및 수시/정시 원서 미접수 자가 조사 원장)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS public.student_intent_surveys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID REFERENCES public.enrolled_students(id) ON DELETE CASCADE,
     student_code TEXT NOT NULL UNIQUE,                            -- 학번 (예: 30105)
     
-    -- 수능 응시 여부 조사
+    -- 1) 수능 응시 여부 조사
     csat_intent TEXT NOT NULL DEFAULT 'TAKE' CHECK (csat_intent IN ('TAKE', 'NO_TAKE')), -- 수능 응시('TAKE') / 미응시('NO_TAKE')
     csat_no_take_reason TEXT,                                     -- 수능 미응시 사유 (취업 준비, 군입대, 해외유학, 수시집중 등)
     
-    -- 수시 접수 여부 조사
-    susi_intent TEXT NOT NULL DEFAULT 'APPLY' CHECK (susi_intent IN ('APPLY', 'NO_APPLY')), -- 수시 접수('APPLY') / 미접수('NO_APPLY')
-    susi_no_apply_reason TEXT,                                    -- 수시 미접수 사유 (정시 올인, 취업 준비, 재수 준비 등)
+    -- 2) (일반대/과기원) 수시 접수 여부
+    susi_general_intent TEXT NOT NULL DEFAULT 'APPLY' CHECK (susi_general_intent IN ('APPLY', 'NO_APPLY')),
+    susi_general_no_reason TEXT,
+    
+    -- 3) (일반대/과기원) 정시 접수 여부
+    jungsi_general_intent TEXT NOT NULL DEFAULT 'APPLY' CHECK (jungsi_general_intent IN ('APPLY', 'NO_APPLY')),
+    jungsi_general_no_reason TEXT,
+    
+    -- 4) (전문대) 수시 접수 여부
+    susi_college_intent TEXT NOT NULL DEFAULT 'APPLY' CHECK (susi_college_intent IN ('APPLY', 'NO_APPLY')),
+    susi_college_no_reason TEXT,
+    
+    -- 5) (전문대) 정시 접수 여부
+    jungsi_college_intent TEXT NOT NULL DEFAULT 'APPLY' CHECK (jungsi_college_intent IN ('APPLY', 'NO_APPLY')),
+    jungsi_college_no_reason TEXT,
+    
+    -- 레거시 호환 컬럼
+    susi_intent TEXT DEFAULT 'APPLY',
+    susi_no_apply_reason TEXT,
+    jungsi_intent TEXT DEFAULT 'APPLY',
+    jungsi_no_reason TEXT,
     
     -- 전자서명 및 확인 정보
     student_signature TEXT,                                       -- 학생 모바일/PC 전자서명 (Base64 Data URL)
     parent_signature TEXT,                                        -- 학부모 모바일/PC 전자서명 (Base64 Data URL)
     parent_name TEXT,                                             -- 학부모 성명
     is_form_submitted BOOLEAN NOT NULL DEFAULT FALSE,             -- 실물 확인서 담임 제출 완료 여부
-    confirmed_at TIMESTAMP WITH TIME ZONE,                        -- 학생 등록 완료 일시
+    confirmed_at TIMESTAMP WITH TIME ZONE,                        -- 학생 최초 등록 완료 일시
+    
+    -- 수정 감사 로그 (Audit History)
+    change_logs JSONB DEFAULT '[]'::jsonb,                        -- 수정 변경 내역 이력 로그 배열
+    history_count INT DEFAULT 0,                                  -- 총 수정 횟수
+    last_modified_by TEXT,                                        -- 최종 수정자 성명
+    last_modified_at TIMESTAMP WITH TIME ZONE,                    -- 최종 수정 일시
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
@@ -1181,10 +1205,32 @@ CREATE TABLE IF NOT EXISTS public.student_intent_surveys (
 
 CREATE INDEX IF NOT EXISTS idx_intent_surveys_student_id ON public.student_intent_surveys(student_id);
 CREATE INDEX IF NOT EXISTS idx_intent_surveys_csat_intent ON public.student_intent_surveys(csat_intent);
-CREATE INDEX IF NOT EXISTS idx_intent_surveys_susi_intent ON public.student_intent_surveys(susi_intent);
+CREATE INDEX IF NOT EXISTS idx_intent_surveys_susi_gen ON public.student_intent_surveys(susi_general_intent);
+CREATE INDEX IF NOT EXISTS idx_intent_surveys_jung_gen ON public.student_intent_surveys(jungsi_general_intent);
 
 ALTER TABLE public.student_intent_surveys ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Enable all access to student_intent_surveys" ON public.student_intent_surveys;
 CREATE POLICY "Enable all access to student_intent_surveys" ON public.student_intent_surveys FOR ALL TO public USING (true) WITH CHECK (true);
 GRANT ALL ON TABLE public.student_intent_surveys TO anon, authenticated, service_role;
+
+-- ================================================================
+-- 24. STUDENT_INTENT_HISTORY (학생 의향 조사 수정 개별 로그 아카이브 테이블)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.student_intent_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_code TEXT NOT NULL,
+    actor_name TEXT NOT NULL DEFAULT '학생 본인',
+    actor_role TEXT NOT NULL DEFAULT 'student',
+    changes JSONB NOT NULL DEFAULT '[]'::jsonb,
+    memo TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_intent_history_code ON public.student_intent_history(student_code);
+
+ALTER TABLE public.student_intent_history ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable all access to student_intent_history" ON public.student_intent_history;
+CREATE POLICY "Enable all access to student_intent_history" ON public.student_intent_history FOR ALL TO public USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE public.student_intent_history TO anon, authenticated, service_role;
+
 
