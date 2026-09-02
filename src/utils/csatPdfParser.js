@@ -61,15 +61,18 @@ export async function parseCsatPdf(file) {
 
     console.log(`[CSAT Parser] 페이지 ${pageNum}: items=${items.length}, rotation=${viewport.rotation}`)
 
-    // 저장 일시 추출 (미발견 시 다음 페이지에서도 계속 탐색)
-    if (!batchTime) {
-      batchTime = extractBatchTime(items, viewport)
-    }
-
     // ★ 핵심: 글자 단위 PDF → 단어 재조립 후 토큰 스트림 파싱
     const rowTexts = reassembleCharacters(items, viewport)
     if (pageNum === 1) {
       console.log('[CSAT Parser] 1페이지 재조립 행(처음 5줄):', rowTexts.slice(0, 5))
+    }
+
+    // 저장 일시 추출 (미발견 시 다음 페이지에서도 계속 탐색)
+    if (!batchTime) {
+      batchTime = extractBatchTime(rowTexts)
+      if (batchTime) {
+        console.log(`[CSAT Parser] PDF 저장일시 추출 성공: ${batchTime}`)
+      }
     }
 
     let pageRecords = parseRecordsFromReassembledRows(rowTexts)
@@ -111,6 +114,20 @@ export async function parseCsatPdf(file) {
     enrolledCount: stats.enrolledCount,
     gradCount: stats.graduatedCount
   }
+}
+
+/**
+ * 재조립된 행 텍스트들에서 PDF 저장/출력 일시(예: 2026-09-01 16:03:00)를 추출
+ */
+function extractBatchTime(rowTexts) {
+  if (!rowTexts || rowTexts.length === 0) return null
+  for (const text of rowTexts) {
+    const m = text.match(/(\d{4}[-.]\d{2}[-.]\d{2}\s+\d{2}:\d{2}:\d{2})/)
+    if (m) return m[1].replace(/\./g, '-')
+    const m2 = text.match(/(\d{4}[-.]\d{2}[-.]\d{2}\s+\d{2}:\d{2})/)
+    if (m2) return `${m2[1].replace(/\./g, '-')}:00`
+  }
+  return null
 }
 
 /**
@@ -329,62 +346,7 @@ function parseRecordsFromPageTokens(items, viewport) {
   return records
 }
 
-/**
- * 텍스트 아이템들에서 저장 일시(YYYY-MM-DD HH:mm:ss 등) 추출
- * 날짜와 시각이 분리된 텍스트 아이템으로 추출되는 경우도 통합 대응
- */
-function extractBatchTime(items, viewport) {
-  if (!items || items.length === 0) return null
 
-  const combinedRegex = /(\d{4}[-./]\d{1,2}[-./]\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/
-  const dateOnlyRegex = /(\d{4}[-./]\d{1,2}[-./]\d{1,2})/
-  const timeOnlyRegex = /(\d{1,2}:\d{2}(?::\d{2})?)/
-
-  // 1. 단일 아이템 내에 일시가 모두 있는 경우
-  for (const item of items) {
-    const match = item.str.match(combinedRegex)
-    if (match) {
-      const normalizedDate = match[1].replace(/[./]/g, '-')
-      const normalizedTime = match[2].length === 5 ? `${match[2]}:00` : match[2]
-      return `${normalizedDate} ${normalizedTime}`
-    }
-  }
-
-  // 2. 전체 텍스트에서 결합 검색
-  const fullText = items.map(i => i.str).join(' ')
-  const match = fullText.match(combinedRegex)
-  if (match) {
-    const normalizedDate = match[1].replace(/[./]/g, '-')
-    const normalizedTime = match[2].length === 5 ? `${match[2]}:00` : match[2]
-    return `${normalizedDate} ${normalizedTime}`
-  }
-
-  // 3. 하단 영역에서 날짜 아이템과 시각 아이템 분리 검색
-  let foundDate = null
-  let foundTime = null
-
-  // 하단 텍스트(뷰포트 하단 20%) 우선 탐색
-  for (const item of items) {
-    const text = item.str.trim()
-    if (!foundDate && dateOnlyRegex.test(text)) {
-      const dMatch = text.match(dateOnlyRegex)
-      // 기간(YYYY.MM.DD ~ YYYY.MM.DD)의 시작일이 아닌 하단 단독 날짜인지 확인
-      if (!text.includes('~') && !text.includes('기간')) {
-        foundDate = dMatch[1].replace(/[./]/g, '-')
-      }
-    }
-    if (!foundTime && timeOnlyRegex.test(text)) {
-      const tMatch = text.match(timeOnlyRegex)
-      foundTime = tMatch[1].length === 5 ? `${tMatch[1]}:00` : tMatch[1]
-    }
-  }
-
-  if (foundDate && foundTime) {
-    return `${foundDate} ${foundTime}`
-  }
-
-  return null
-}
 
 /**
  * 텍스트 아이템을 뷰포트 시각 좌표계(Visual Coordinate) 기준으로 변환 후
