@@ -70,9 +70,11 @@
         <!-- 필터 및 액션 버튼 -->
         <div class="flex flex-wrap gap-3 mb-4 items-center justify-between">
           <div class="flex flex-wrap gap-2 items-center">
-            <select v-model="filterClass" class="text-sm border border-slate-200 rounded-xl px-4 py-2.5 bg-white font-semibold text-slate-700 cursor-pointer min-w-[110px] shadow-sm focus:outline-none focus:border-indigo-500 transition-all">
-              <option value="all">전체 반</option>
+            <select v-model="filterClass" class="text-sm border border-slate-200 rounded-xl px-4 py-2.5 bg-white font-semibold text-slate-700 cursor-pointer min-w-[140px] shadow-sm focus:outline-none focus:border-indigo-500 transition-all">
+              <option value="all">전체 (재학생 + 졸업생)</option>
+              <option value="enrolled_all">재학생 전체 (1~11반)</option>
               <option v-for="c in classList" :key="c" :value="c">{{ c }}반</option>
+              <option value="grad">🎓 졸업생 (수능접수)</option>
             </select>
             <select v-model="filterStatus" class="text-sm border border-slate-200 rounded-xl px-4 py-2.5 bg-white font-semibold text-slate-700 cursor-pointer min-w-[160px] shadow-sm focus:outline-none focus:border-indigo-500 transition-all">
               <option value="all">전체 상태</option>
@@ -126,7 +128,10 @@
                 :class="['border-b border-slate-100 transition-colors text-xs', isMismatch(row) ? 'bg-red-50/70' : 'hover:bg-slate-50']">
                 <td class="px-3 py-3 font-mono text-slate-700 font-bold">{{ row.student_code }}</td>
                 <td class="px-3 py-3 font-semibold text-slate-800">{{ row.name }}</td>
-                <td class="px-2 py-3 text-center text-slate-600">{{ row.class_no }}반</td>
+                <td class="px-2 py-3 text-center text-slate-600">
+                  <span v-if="row.class_no">{{ row.class_no }}반</span>
+                  <span v-else class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">졸업생({{ row.grad_year || '졸업' }})</span>
+                </td>
 
                 <!-- 수능 자가체크 -->
                 <td class="px-3 py-3 text-center">
@@ -428,21 +433,15 @@
               </div>
             </div>
 
-            <!-- 2. 학급 선택 및 옵션 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">2. 대상 학급</label>
-                <select v-model="rosterClass" class="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 cursor-pointer shadow-sm focus:outline-none focus:border-indigo-500">
-                  <option value="all">전체 학급</option>
-                  <option v-for="c in classList" :key="c" :value="c">{{ c }}반</option>
-                </select>
-              </div>
-              <div class="flex items-center pt-5">
-                <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700">
-                  <input type="checkbox" v-model="rosterIncludeGrad" class="rounded text-indigo-600 w-4 h-4" />
-                  <span>🎓 졸업생 포함 (접수대장 등록자)</span>
-                </label>
-              </div>
+            <!-- 2. 학급 선택 -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">2. 대상 학급</label>
+              <select v-model="rosterClass" class="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white text-slate-800 cursor-pointer shadow-sm focus:outline-none focus:border-indigo-500">
+                <option value="all">전체 (재학생 + 졸업생)</option>
+                <option value="enrolled_all">재학생 전체 (1~11반)</option>
+                <option v-for="c in classList" :key="c" :value="c">{{ c }}반</option>
+                <option value="grad">🎓 졸업생 전체 (수능접수대장 등록자)</option>
+              </select>
             </div>
 
             <!-- 3. 상세 필터 조건 (수능 대장, 수시, 정시) -->
@@ -534,30 +533,28 @@ const selectedHistoryStudent = ref(null)
 const isRosterModalOpen = ref(false)
 const rosterType = ref('all') // all, csat, apply, mismatch, no_take, no_apply, no_survey, no_form
 const rosterClass = ref('all')
-const rosterIncludeGrad = ref(true)
 const rosterCsatFilter = ref('all') // all, registered, not_registered
 const rosterSusiGenFilter = ref('all') // all, apply, no_apply
 const rosterJungGenFilter = ref('all') // all, apply, no_apply
 
 function openRosterModal() {
-  rosterClass.value = filterClass.value !== 'all' ? String(filterClass.value) : 'all'
+  rosterClass.value = filterClass.value
   isRosterModalOpen.value = true
 }
 
 const rosterFilteredList = computed(() => {
   let list = comparisonData.value
 
-  // 1. 졸업생 포함 여부
-  if (!rosterIncludeGrad.value) {
+  // 1. 학급 필터 ('all'은 재학생 + 졸업생 전체)
+  if (rosterClass.value === 'enrolled_all') {
     list = list.filter(r => r.is_enrolled !== false)
-  }
-
-  // 2. 학급 필터
-  if (rosterClass.value !== 'all') {
+  } else if (rosterClass.value === 'grad') {
+    list = list.filter(r => r.is_enrolled === false)
+  } else if (rosterClass.value !== 'all') {
     list = list.filter(r => r.class_no === Number(rosterClass.value))
   }
 
-  // 3. 대장 종류 필터
+  // 2. 대장 종류 필터
   if (rosterType.value === 'mismatch') {
     list = list.filter(r => isMismatch(r))
   } else if (rosterType.value === 'no_take') {
@@ -570,21 +567,21 @@ const rosterFilteredList = computed(() => {
     list = list.filter(r => r.has_survey && !r.is_form_submitted && (r.csat_intent === 'NO_TAKE' || hasStudentNoApply(r)))
   }
 
-  // 4. 수능 접수대장 상태 필터
+  // 3. 수능 접수대장 상태 필터
   if (rosterCsatFilter.value === 'registered') {
     list = list.filter(r => r.csat_registered)
   } else if (rosterCsatFilter.value === 'not_registered') {
     list = list.filter(r => !r.csat_registered)
   }
 
-  // 5. 일반대 수시 상태 필터
+  // 4. 일반대 수시 상태 필터
   if (rosterSusiGenFilter.value === 'apply') {
     list = list.filter(r => r.has_survey && (r.susi_general_intent || r.susi_intent) !== 'NO_APPLY')
   } else if (rosterSusiGenFilter.value === 'no_apply') {
     list = list.filter(r => r.has_survey && (r.susi_general_intent || r.susi_intent) === 'NO_APPLY')
   }
 
-  // 6. 일반대 정시 상태 필터
+  // 5. 일반대 정시 상태 필터
   if (rosterJungGenFilter.value === 'apply') {
     list = list.filter(r => r.has_survey && (r.jungsi_general_intent || r.jungsi_intent) !== 'NO_APPLY')
   } else if (rosterJungGenFilter.value === 'no_apply') {
@@ -610,9 +607,10 @@ function executeRosterPrint() {
   else if (rosterType.value === 'no_survey') title = '2027학년도 의향 조사 미응답자 명단 대장'
   else if (rosterType.value === 'no_form') title = '2027학년도 확인서 미제출자 명단 대장'
 
-  let classInfo = rosterClass.value === 'all' ? '전체 학급' : `${rosterClass.value}반`
-  if (rosterIncludeGrad.value) classInfo += ' (졸업생 포함)'
-  else classInfo += ' (재학생만)'
+  let classInfo = '전체 (재학생 + 졸업생)'
+  if (rosterClass.value === 'enrolled_all') classInfo = '재학생 전체 (1~11반)'
+  else if (rosterClass.value === 'grad') classInfo = '졸업생 전체 (수능접수)'
+  else if (rosterClass.value !== 'all') classInfo = `3학년 ${rosterClass.value}반`
 
   const filterSummaryList = []
   if (rosterCsatFilter.value === 'registered') filterSummaryList.push('수능접수:접수됨')
@@ -677,7 +675,11 @@ const stats = computed(() => {
 
 const filteredData = computed(() => {
   let data = comparisonData.value
-  if (filterClass.value !== 'all') {
+  if (filterClass.value === 'enrolled_all') {
+    data = data.filter(r => r.is_enrolled !== false)
+  } else if (filterClass.value === 'grad') {
+    data = data.filter(r => r.is_enrolled === false)
+  } else if (filterClass.value !== 'all') {
     data = data.filter(r => r.class_no === Number(filterClass.value))
   }
   if (filterStatus.value === 'mismatch') data = data.filter(r => isMismatch(r))
