@@ -589,6 +589,7 @@ async function processPdf(file) {
   uploadState.value = 'parsing'
   try {
     const result = await parseCsatPdf(file)
+    console.log('[ExamIntentAdminView] 파싱 완료 result:', result)
     parsedResult.value = result
 
     // 기존 배치시간과 비교
