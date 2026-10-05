@@ -40,11 +40,40 @@ export const AbsenceRegistryView = {
       lines.push(row);
     }
 
-    if (lines.length <= 1) return [];
+    if (lines.length === 0) return [];
 
-    // Header row is index 0
+    const normalizeDateStr = (dateRaw) => {
+      if (!dateRaw) return '';
+      const str = String(dateRaw).trim();
+      const dateMatch = str.match(/Date\((\d{4}),\s*(\d+),\s*(\d+)/i);
+      if (dateMatch) {
+        const y = dateMatch[1];
+        const m = String(parseInt(dateMatch[2], 10) + 1).padStart(2, '0');
+        const d = String(parseInt(dateMatch[3], 10)).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      const cleaned = str.replace(/[^\d.-/]/g, '').replace(/[\/.]/g, '-');
+      const parts = cleaned.split('-').filter(Boolean);
+      if (parts.length === 3) {
+        const y = parts[0];
+        const m = parts[1].padStart(2, '0');
+        const d = parts[2].padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      return str;
+    };
+
+    const cleanInt = (v, def = '') => {
+      if (v === null || v === undefined || v === '') return def;
+      const n = parseInt(v, 10);
+      return isNaN(n) ? def : String(n);
+    };
+
+    const isHeaderRow = lines[0] && (lines[0][0] === '순번' || lines[0][4] === '이름' || isNaN(parseFloat(lines[0][0])));
+    const startIdx = isHeaderRow ? 1 : 0;
+
     const records = [];
-    for (let r = 1; r < lines.length; r++) {
+    for (let r = startIdx; r < lines.length; r++) {
       const line = lines[r];
       if (!line[0] && !line[4]) continue;
 
@@ -59,20 +88,20 @@ export const AbsenceRegistryView = {
                    line[12] === 'TRUE' || line[12] === 'true' || line[12] === '기타' ? '기타' : (line[9] || '-');
 
       records.push({
-        no: line[0] || String(r),
-        grade: line[1] || '3',
-        ban: line[2] || '',
-        num: line[3] || '',
-        name: line[4] || '',
+        no: cleanInt(line[0], String(r + 1)),
+        grade: cleanInt(line[1], '3'),
+        ban: cleanInt(line[2], ''),
+        num: cleanInt(line[3], ''),
+        name: (line[4] || '').trim(),
         cat,
         type,
-        startDate: line[13] || '',
-        startPeriod: line[14] || '',
-        endDate: line[15] || '',
-        endPeriod: line[16] || '',
+        startDate: normalizeDateStr(line[13]),
+        startPeriod: cleanInt(line[14], ''),
+        endDate: normalizeDateStr(line[15]),
+        endPeriod: cleanInt(line[16], ''),
         totalDays: line[17] || '1일간',
         reason: line[18] || '',
-        writeDate: line[19] || '',
+        writeDate: normalizeDateStr(line[19]),
         parentName: line[20] || '',
         studentSigUrl: line[33] || '',
         parentSigUrl: line[34] || '',
@@ -98,8 +127,8 @@ export const AbsenceRegistryView = {
       if (num && String(r.num) !== String(num)) return false;
       if (name && !r.name.toLowerCase().includes(name.toLowerCase())) return false;
       if (month && (!r.startDate.startsWith(month) && !r.endDate.startsWith(month))) return false;
-      if (printStatus === 'printed' && !r.printedAt) return false;
       if (printStatus === 'unprinted' && r.printedAt) return false;
+      if (printStatus === 'printed' && !r.printedAt) return false;
       return true;
     });
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Moving Class Rollbook View Generator (이동수업 출석부 1~12반)
  * Generates 2 pages per day on A4 Landscape (15mm margins).
  * Page 1: 1~4 Periods (4 Columns)
@@ -7,7 +7,7 @@
 
 import { RollbookModel, AcademicConfig, escapeHtml } from '../models.js';
 
-// 대한민국 공식 규격 태극기 SVG 아이콘 (일장기 🎌 대체)
+// 대한민국 공식 규격 태극기 SVG 아이콘
 const TAEGEUKGI_SVG = `
   <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 640 480" width="34" height="26" style="display: inline-block; vertical-align: middle; border: 1px solid #cbd5e1; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
     <defs>
@@ -60,7 +60,7 @@ export const MovingRollbookView = {
         pages.push(this.renderPage(roomName, dayInfo, p1Rosters, '오전 (1~4교시)', 4, options));
 
         // Determine max periods for the day from config
-        const maxPeriods = AcademicConfig.periodsPerDay[dayInfo.dayOfWeek] || 6;
+        const maxPeriods = (AcademicConfig.periodsPerDay && AcademicConfig.periodsPerDay[dayInfo.dayOfWeek]) || 6;
         const p2Start = 5;
         const p2Periods = [];
         for (let p = p2Start; p <= maxPeriods; p++) p2Periods.push(p);
@@ -81,7 +81,8 @@ export const MovingRollbookView = {
   renderPage(roomName, dayInfo, rosters, periodLabel, colCount, options = {}) {
     // Room display title: e.g. "이동 1반 (3-1교실)"
     const roomNum = roomName.replace('3-', '');
-    const titleText = `[이동 ${roomNum}반 / ${escapeHtml(roomName)}교실]  ${escapeHtml(dayInfo.fullDisplayDate)} (${dayInfo.dayOfWeek}요일) 출석부`;
+    const dateText = dayInfo.fullDisplayDate || (dayInfo.dateStr ? dayInfo.dateStr.replace(/-/g, '.') : '');
+    const titleText = `[이동 ${roomNum}반 / ${escapeHtml(roomName)}교실]  ${escapeHtml(dateText)} (${dayInfo.dayOfWeek}요일) 출석부`;
 
     // Determine maximum student count on this page to set a uniform row height for all columns
     const maxStudentsOnPage = Math.max(
@@ -128,20 +129,20 @@ export const MovingRollbookView = {
 
     // Header title
     let headerTitle = `${roster.periodNum}교시`;
-    let subTitle = `${escapeHtml(roster.subject)} (${escapeHtml(roster.teacher)}T)`;
+    let subTitle = `${escapeHtml(roster.subject || '-')} (${escapeHtml(roster.teacher || '-')}T)`;
 
     if (roster.isSwap) {
-      headerTitle += ` [${escapeHtml(roster.scheduleKey)} 수업]`;
+      headerTitle += ` [${escapeHtml(roster.scheduleKey || '')} 수업]`;
     }
 
     if (isWednesdayChangche) {
       subTitle = '창의적 체험활동 (원적학급)';
     } else if (isHoliday) {
-      subTitle = `공휴일/행사: ${escapeHtml(roster.title)}`;
+      subTitle = `공휴일/행사: ${escapeHtml(roster.title || '')}`;
     } else if (isCancelled) {
-      subTitle = escapeHtml(roster.title);
+      subTitle = escapeHtml(roster.title || '단축/휴강');
     } else if (isActivity) {
-      subTitle = escapeHtml(roster.title);
+      subTitle = escapeHtml(roster.title || '행사');
     }
 
     // If holiday or cancelled, display shaded notification banner
@@ -164,10 +165,11 @@ export const MovingRollbookView = {
     // Render student table rows (up to 35 rows)
     const students = roster.students || [];
     const overridesMap = options.overridesMap || null;
+    const registryMap = options.registryMap || null;
 
     const rowsHtml = students.map((st, idx) => {
       const origStatus = RollbookModel.getStudentPeriodStatus(st, dayInfo.dayOfWeek, roster.periodNum, dayInfo.dateStr, showSpecialStudents);
-      const status = RollbookModel.getEffectiveStudentPeriodStatus(st, dayInfo.dayOfWeek, roster.periodNum, dayInfo.dateStr, showSpecialStudents, overridesMap);
+      const status = RollbookModel.getEffectiveStudentPeriodStatus(st, dayInfo.dayOfWeek, roster.periodNum, dayInfo.dateStr, showSpecialStudents, overridesMap, registryMap);
 
       const is50Dark = status.is50Dark ? 'row-dark-50' : '';
       const is10Tint = (!status.is50Dark && status.isShaded) ? 'cell-tint-10' : '';
@@ -181,12 +183,27 @@ export const MovingRollbookView = {
       const rawStatusValue = status.rawStatus || currentStatusText;
       const originalStatusText = origStatus.text || '';
 
+      const hasConflict = status && status.hasConflict;
+      const isRegistryPriority = status && status.isRegistryPriority;
+      const conflictClass = hasConflict ? 'has-conflict' : '';
+      const registryClass = isRegistryPriority ? 'is-registry-approved' : '';
+      let cellBadge = '';
+      let cellTitle = '좌클릭: 출결 순환 | Shift+클릭: 역순환 | 우클릭: 직접 선택/전교시 일괄';
+
+      if (hasConflict) {
+        cellBadge = `<span class="cell-conflict-badge" title="상충: 현장기록(${escapeHtml(status.conflictOverrideStatus || '')})">⚡</span>`;
+        cellTitle = `[공식 결석계 우선 적용: ${status.fullStatus || currentStatusText}] 현장 기록(${status.conflictOverrideStatus})과 상충 | 클릭 시 변경 확인`;
+      } else if (isRegistryPriority) {
+        cellBadge = `<span class="cell-registry-badge" title="대장 공식 결석계 승인">📑</span>`;
+        cellTitle = `[공식 결석계 승인: ${status.fullStatus || currentStatusText}] 증빙서류 확인 완료 | 클릭 시 변경 확인`;
+      }
+
       return `
         <tr class="student-row ${is50Dark}">
           <td class="col-seq">${idx + 1}</td>
           <td class="col-id">${escapeHtml(st.studentId)}</td>
           <td class="col-name">${escapeHtml(st.name)}</td>
-          <td class="col-check interactive-cell ${is10Tint} ${isOverriddenClass} ${isDocSubmitted}"
+          <td class="col-check interactive-cell ${is10Tint} ${isOverriddenClass} ${isDocSubmitted} ${registryClass} ${conflictClass}"
               data-action="attendance-cell"
               data-student-id="${escapeHtml(st.studentId)}"
               data-date="${escapeHtml(dayInfo.dateStr)}"
@@ -197,8 +214,11 @@ export const MovingRollbookView = {
               data-room="${escapeHtml(roster.room || '')}"
               data-original-status="${escapeHtml(originalStatusText)}"
               data-current-status="${escapeHtml(rawStatusValue)}"
-              title="좌클릭: 출결 순환 | Shift+클릭: 역순환 | 우클릭: 직접 선택/전교시 일괄">
-            ${escapeHtml(status.text) || '<span class="check-box"></span>'}
+              data-is-registry="${isRegistryPriority ? '1' : '0'}"
+              data-has-conflict="${hasConflict ? '1' : '0'}"
+              data-conflict-override="${escapeHtml((status && status.conflictOverrideStatus) || '')}"
+              title="${cellTitle}">
+            ${escapeHtml(status.text) || '<span class="check-box"></span>'}${cellBadge}
           </td>
           <td class="col-remark" data-student-id="${escapeHtml(st.studentId)}" data-base-remark="${escapeHtml(baseRemark)}">${escapeHtml(displayRemark)}</td>
         </tr>

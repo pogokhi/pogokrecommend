@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Data Model & Business Logic for ggomrollbook
  */
 
@@ -14,6 +14,18 @@ export const AcademicConfig = {
   allRooms: ['3-1','3-2','3-3','3-4','3-5','3-6','3-7','3-8','3-9','3-10','3-11','3-12'],
   allBans: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   periodsPerDay: { '월': 6, '화': 7, '수': 6, '목': 7, '금': 6 },
+  getPeriodsForDay(dayOfWeek) {
+    const max = this.periodsPerDay[dayOfWeek] || 6;
+    const arr = [];
+    for (let p = 1; p <= max; p++) arr.push(p);
+    return arr;
+  },
+  getDayOfWeek(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    return dayNames[d.getDay()] || '';
+  },
   // 급식 미운영 키워드 (fullDayEvent에 포함 시 급식 제외)
   noLunchKeywords: ['추석', '공휴일', '한글날', '수능', '휴업', '성탄절', '신정', '대체공휴일', '정기시험'],
   // 급식 운영 행사 (fullDayEvent이지만 급식 운영 — 여기 포함되면 급식 카운트)
@@ -203,10 +215,13 @@ export const RollbookModel = {
    */
   parseAttendanceRecords(csvRows) {
     const overridesMap = new Map();
-    if (!csvRows || csvRows.length < 2) return overridesMap;
+    if (!csvRows || csvRows.length === 0) return overridesMap;
 
-    // Row 0: Headers (고유키, 날짜, 교시, 반, 번호, 이름, 이동반교실, 출결내용, 수정일시)
-    for (let r = 1; r < csvRows.length; r++) {
+    // Check if row 0 is header or actual data
+    const firstVal = (csvRows[0] && csvRows[0][0]) ? String(csvRows[0][0]).trim() : '';
+    const isHeader = !firstVal.match(/^\d{4}-\d{2}-\d{2}/);
+    const startIdx = isHeader ? 1 : 0;
+    for (let r = startIdx; r < csvRows.length; r++) {
       const row = csvRows[r];
       if (!row || row.length < 3) continue;
 
@@ -269,10 +284,12 @@ export const RollbookModel = {
         days.push({
           dateStr: `${yyyy}-${mm}-${dd}`,
           displayDate: `${mm}.${dd}`,
+          label: `${mm}.${dd}`,
           fullDisplayDate: `${yyyy}년 ${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일`,
           dayOfWeek: dayName,
           dateObj: date
         });
+
       }
 
       const isCurrent = (w === curWeek);
@@ -280,6 +297,8 @@ export const RollbookModel = {
         weekNum: w,
         label: `2학기 ${w}주차 (${days[0].displayDate} ~ ${days[4].displayDate})${isCurrent ? ' ★ [이번 주]' : ''}`,
         shortLabel: `${w}주차`,
+        title: `2학기 ${w}주차`,
+        rangeStr: `${days[0].displayDate} ~ ${days[4].displayDate}`,
         isCurrent,
         days
       });
@@ -472,22 +491,223 @@ export const RollbookModel = {
   },
 
   /**
-   * Get effective status taking overridesMap into account
+   * Determine fullStatus and rawStatus from registry record
    */
-  getEffectiveStudentPeriodStatus(student, dayOfWeek, periodNum, dateStr = null, showSpecialStudent = false, overridesMap = null) {
+  getRegistryFullStatus(r) {
+    if (!r) return { rawStatus: '', fullStatus: '', category: 'present' };
+
+    const cat = (r.cat || '결석').trim();
+    const type = (r.type || '질병').trim();
+    const reason = (r.reason || '').trim();
+    const subType = (r.subType || '').trim();
+
+    let rawStatus = '병';
+    if (type.includes('생리') || reason.includes('생리')) {
+      rawStatus = '인(생리)';
+    } else if (type.includes('인정') || type.includes('출석인정')) {
+      if (reason.includes('체험') || subType.includes('체험')) rawStatus = '인(체험)';
+      else if (reason.includes('경조') || subType.includes('경조')) rawStatus = '인(경조사)';
+      else if (reason.includes('전염') || reason.includes('코로나') || reason.includes('독감')) rawStatus = '인(전염병)';
+      else rawStatus = '인(체험)';
+    } else if (type.includes('미인정') || type.includes('무단')) {
+      rawStatus = '미';
+    } else if (type.includes('기타')) {
+      rawStatus = '기';
+    } else if (type.includes('질병') || reason.includes('감기') || reason.includes('병원') || reason.includes('진료')) {
+      rawStatus = '병';
+    }
+
+    const fullStatus = `${type}${cat}`;
+    const category = this.getCategoryFromRawStatus(rawStatus);
+
+    return { rawStatus, fullStatus, category };
+  },
+
+  parseRegistryData(records, allStudents = null) {
+    const map = new Map();
+    if (!records || !Array.isArray(records)) return map;
+
+    const studentLookup = new Map();
+    if (allStudents && Array.isArray(allStudents)) {
+      allStudents.forEach(st => {
+        studentLookup.set(`${st.ban}_${st.num}`, st.studentId);
+        studentLookup.set(`${st.ban}_${st.name}`, st.studentId);
+        studentLookup.set(st.studentId, st.studentId);
+      });
+    }
+
+    const normalizeDateStr = (dateRaw) => {
+      if (!dateRaw) return '';
+      const str = String(dateRaw).trim();
+      const dateMatch = str.match(/Date\((\d{4}),\s*(\d+),\s*(\d+)/i);
+      if (dateMatch) {
+        const y = dateMatch[1];
+        const m = String(parseInt(dateMatch[2], 10) + 1).padStart(2, '0');
+        const d = String(parseInt(dateMatch[3], 10)).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      const cleaned = str.replace(/[^\d.-/]/g, '').replace(/[\/.]/g, '-');
+      const parts = cleaned.split('-').filter(Boolean);
+      if (parts.length === 3) {
+        const y = parts[0];
+        const m = parts[1].padStart(2, '0');
+        const d = parts[2].padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      return str;
+    };
+
+    const getDateRange = (startRaw, endRaw) => {
+      const s = normalizeDateStr(startRaw);
+      const e = normalizeDateStr(endRaw) || s;
+      if (!s) return [];
+      if (!e || s === e) return [s];
+
+      const dates = [];
+      const cur = new Date(s);
+      const end = new Date(e);
+      let count = 0;
+      while (cur <= end && count < 35) {
+        const y = cur.getFullYear();
+        const m = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+        count++;
+      }
+      return dates;
+    };
+
+    const allPeriodsOrder = ['조', 1, 2, 3, 4, 5, 6, 7, '종'];
+
+    records.forEach(r => {
+      const bNum = parseInt(r.ban, 10);
+      const nNum = parseInt(r.num, 10);
+      const ban = isNaN(bNum) ? String(r.ban || '').trim() : String(bNum);
+      const num = isNaN(nNum) ? String(r.num || '').trim() : String(nNum);
+      const name = String(r.name || '').trim();
+      const grade = String(parseInt(r.grade, 10) || 3);
+
+      let studentId = '';
+      if (studentLookup.has(`${ban}_${num}`)) {
+        studentId = studentLookup.get(`${ban}_${num}`);
+      } else if (studentLookup.has(`${ban}_${name}`)) {
+        studentId = studentLookup.get(`${ban}_${name}`);
+      } else {
+        studentId = `${grade}${ban.padStart(2, '0')}${num.padStart(2, '0')}`;
+      }
+
+      const statusInfo = this.getRegistryFullStatus(r);
+      const dates = getDateRange(r.startDate, r.endDate);
+
+      let targetPeriods = [];
+      const cat = (r.cat || '').trim();
+      const startP = r.startPeriod ? (parseInt(r.startPeriod, 10) || r.startPeriod) : '';
+      const endP = r.endPeriod ? (parseInt(r.endPeriod, 10) || r.endPeriod) : '';
+
+      if (cat === '결석') {
+        targetPeriods = ['조', 1, 2, 3, 4, 5, 6, 7, '종'];
+      } else if (cat === '지각') {
+        const limitP = endP || startP || 1;
+        const idx = allPeriodsOrder.indexOf(limitP);
+        targetPeriods = (idx >= 0) ? allPeriodsOrder.slice(0, idx + 1) : ['조', 1];
+      } else if (cat === '조퇴') {
+        const fromP = startP || endP || 5;
+        const idx = allPeriodsOrder.indexOf(fromP);
+        targetPeriods = (idx >= 0) ? allPeriodsOrder.slice(idx) : [5, 6, 7, '종'];
+      } else if (cat === '결과') {
+        if (startP && endP) {
+          const sIdx = allPeriodsOrder.indexOf(startP);
+          const eIdx = allPeriodsOrder.indexOf(endP);
+          if (sIdx >= 0 && eIdx >= 0 && sIdx <= eIdx) {
+            targetPeriods = allPeriodsOrder.slice(sIdx, eIdx + 1);
+          } else {
+            targetPeriods = [startP];
+          }
+        } else if (startP) {
+          targetPeriods = [startP];
+        } else if (endP) {
+          targetPeriods = [endP];
+        } else {
+          targetPeriods = [1];
+        }
+      } else {
+        targetPeriods = ['조', 1, 2, 3, 4, 5, 6, 7, '종'];
+      }
+
+      dates.forEach(dStr => {
+        targetPeriods.forEach(p => {
+          const key = `${dStr}_${p}_${studentId}`;
+          map.set(key, {
+            studentId,
+            dateStr: dStr,
+            period: p,
+            rawStatus: statusInfo.rawStatus,
+            fullStatus: statusInfo.fullStatus,
+            category: statusInfo.category,
+            record: r
+          });
+        });
+      });
+    });
+
+    return map;
+  },
+
+  getEffectiveStudentPeriodStatus(student, dayOfWeek, periodNum, dateStr = null, showSpecialStudent = false, overridesMap = null, registryMap = null) {
     const def = this.getStudentPeriodStatus(student, dayOfWeek, periodNum, dateStr, showSpecialStudent);
     const key = `${dateStr}_${periodNum}_${student?.studentId || ''}`;
+
+    // 1순위: [대장 우선 원칙] '대장' 시트에 접수·결재된 공식 결석계가 있는 경우 (최우선 확정)
+    if (registryMap && student && registryMap.has(key)) {
+      const regRec = registryMap.get(key);
+      const rawStatus = regRec.rawStatus || this.getRegistryFullStatus(regRec.record).rawStatus;
+      const fullStatus = regRec.fullStatus || this.getRegistryFullStatus(regRec.record).fullStatus;
+      const displayText = this.getStatusDisplayText(rawStatus);
+      const remarkText = this.getStatusRemarkText(rawStatus);
+      const cat = regRec.category || this.getCategoryFromRawStatus(rawStatus);
+
+      // 상충(Conflict) 감지: 현장 수업 '출결기록' 시트에 다른 상태가 입력되어 있는가?
+      let hasConflict = false;
+      let conflictOverrideStatus = '';
+      if (overridesMap && overridesMap.has(key)) {
+        const ovRec = overridesMap.get(key);
+        const ovStatus = (ovRec.status || '').trim();
+        if (ovStatus && !this.isStatusEquivalent(ovStatus, rawStatus) && ovStatus !== '출석') {
+          hasConflict = true;
+          conflictOverrideStatus = ovStatus;
+        }
+      }
+
+      return {
+        text: displayText,
+        rawStatus,
+        fullStatus,
+        remarkText,
+        isShaded: true,
+        is50Dark: false,
+        isPresent: false,
+        category: cat,
+        isOverridden: true,
+        isRegistryPriority: true,      // 대장 우선 승인 플래그
+        hasConflict,                  // 현장 기록과의 상충 발생 여부
+        conflictOverrideStatus,       // 교과교사가 체크했던 현장 기록
+        registryRecord: regRec.record, // 대장 공식 결석계 객체
+        docSubmitted: true            // 증빙서류 확인 완료
+      };
+    }
+
+    // 2순위: '출결기록' 시트의 현장 실시간 오버라이드
     if (overridesMap && student && overridesMap.has(key)) {
       const rec = overridesMap.get(key);
       const rawStatus = (rec.status || '').trim();
 
-      // If override value matches the student's original status, it is not an override
       if (this.isStatusEquivalent(rawStatus, def.text)) {
-        return { ...def, rawStatus: def.text, remarkText: '', isOverridden: false, docSubmitted: false };
+        return { ...def, rawStatus: def.text, remarkText: '', isOverridden: false, isRegistryPriority: false, hasConflict: false, docSubmitted: false };
       }
 
       if (!rawStatus || rawStatus === '출석') {
-        return { text: '', rawStatus: '', remarkText: '', isShaded: false, is50Dark: false, isPresent: true, category: 'present', isOverridden: true };
+        return { text: '', rawStatus: '', remarkText: '', isShaded: false, is50Dark: false, isPresent: true, category: 'present', isOverridden: true, isRegistryPriority: false, hasConflict: false };
       }
       const displayText = this.getStatusDisplayText(rawStatus);
       const remarkText = this.getStatusRemarkText(rawStatus);
@@ -502,29 +722,24 @@ export const RollbookModel = {
         isPresent: false,
         category: cat,
         isOverridden: true,
+        isRegistryPriority: false,
+        hasConflict: false,
         docSubmitted: !!rec.docSubmitted
       };
     }
-    return { ...def, rawStatus: def.text, remarkText: '', isOverridden: false, docSubmitted: false };
+
+    // 3순위: 기본 원천 시간표 상태
+    return { ...def, rawStatus: def.text, remarkText: '', isOverridden: false, isRegistryPriority: false, hasConflict: false, docSubmitted: false };
   },
 
-  /**
-   * Analyze student daily attendance across whole day:
-   * Sessions: ['조', 1, 2, ..., maxPeriod, '종']
-   * Classifies into:
-   * - 결석: 조례, 1~최종교시, 종례까지 모두 출석이 아닌 경우
-   * - 지각: 앞부분 불참 후 출석
-   * - 조퇴: 출석 후 뒷부분~종례 불참
-   * - 결과: 앞뒤 출석 중 중간 교시 불참
-   */
-  analyzeDailyAttendance(student, dayOfWeek, dateStr, overridesMap = null, showSpecialStudent = false) {
+  analyzeDailyAttendance(student, dayOfWeek, dateStr, overridesMap = null, showSpecialStudent = false, registryMap = null) {
     const maxPeriod = AcademicConfig.periodsPerDay[dayOfWeek] || 6;
     const periods = ['조'];
     for (let p = 1; p <= maxPeriod; p++) periods.push(p);
     periods.push('종');
 
     const sessionResults = periods.map(p => {
-      const st = this.getEffectiveStudentPeriodStatus(student, dayOfWeek, p, dateStr, showSpecialStudent, overridesMap);
+      const st = this.getEffectiveStudentPeriodStatus(student, dayOfWeek, p, dateStr, showSpecialStudent, overridesMap, registryMap);
       return {
         period: p,
         isPresent: st.isPresent,
@@ -532,7 +747,6 @@ export const RollbookModel = {
         category: st.category || 'present'
       };
     });
-
     const absentSessions = sessionResults.filter(s => !s.isPresent);
     const totalCount = sessionResults.length;
 
@@ -1016,9 +1230,9 @@ export const RollbookModel = {
   },
 
   /**
-   * Get effective display remark combining base remark and attendance reasons (same simple format as moving rollbook)
+   * Get effective display remark
    */
-  getEffectiveDisplayRemark(pRemark, studentId, dateOrDays, overridesMap = null, showSpecialStudent = false, student = null) {
+  getEffectiveDisplayRemark(pRemark, studentId, dateOrDays, overridesMap = null, showSpecialStudent = false, student = null, registryMap = null) {
     const base = this.getDisplayRemark(pRemark, dateOrDays, showSpecialStudent);
     if (!studentId || !dateOrDays) return base;
 
@@ -1046,6 +1260,19 @@ export const RollbookModel = {
         });
       }
 
+      // Check registryMap for official approved absence remarks
+      if (registryMap) {
+        const checkPeriods = ['조', 1, 2, 3, 4, 5, 6, 7, '종'];
+        checkPeriods.forEach(p => {
+          const key = `${dStr}_${p}_${studentId}`;
+          if (registryMap.has(key)) {
+            const regRec = registryMap.get(key);
+            const rText = this.getStatusRemarkText(regRec.rawStatus);
+            if (rText) extraRemarks.add(rText);
+          }
+        });
+      }
+
       // Check weekly recurring attendance for remark text ('생리', '체험', '경조사', '전염병')
       if (student && student.weeklyAtt && dayOfWeek) {
         const att = student.weeklyAtt[dayOfWeek];
@@ -1064,7 +1291,6 @@ export const RollbookModel = {
 
     return base;
   },
-
   /**
    * Check if a student is eligible for lunch on a specific day
    */

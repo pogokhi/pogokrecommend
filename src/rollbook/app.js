@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Main Application Controller for ggomrollbook
  */
 
@@ -23,6 +23,7 @@ class App {
       view: 'homeroom', // 'moving' | 'homeroom' | 'lunch' | 'finder' | 'today' | 'absence'
       absenceFilters: { grade: '3', ban: '', num: '', name: '', month: '', printStatus: 'all' },
       absenceRegistryRecords: [],
+      registryMap: new Map(),
       allStudents: [],
       holidaysMap: { fullDayEvents: {}, periodOverrides: {} },
       weeks: [],
@@ -69,7 +70,7 @@ class App {
   async loadData() {
     this.showLoading(true);
     try {
-      const { attendanceCsv, holidaysCsv, recordsCsv, isLive, timestamp } = await SheetAPI.loadAllData();
+      const { attendanceCsv, holidaysCsv, recordsCsv, registryCsv, isLive, timestamp } = await SheetAPI.loadAllData();
       const attRows = SheetAPI.parseCsv(attendanceCsv);
       const holRows = SheetAPI.parseCsv(holidaysCsv);
       const recRows = SheetAPI.parseCsv(recordsCsv || '');
@@ -77,6 +78,13 @@ class App {
       this.state.allStudents = RollbookModel.parseAttendanceData(attRows);
       this.state.holidaysMap = RollbookModel.parseHolidaysData(holRows);
       this.state.attendanceOverrides = RollbookModel.parseAttendanceRecords(recRows);
+      if (registryCsv) {
+        this.state.absenceRegistryRecords = AbsenceRegistryView.parseRegistryCsv(registryCsv);
+        this.state.registryMap = RollbookModel.parseRegistryData(this.state.absenceRegistryRecords, this.state.allStudents);
+      } else {
+        this.state.absenceRegistryRecords = [];
+        this.state.registryMap = new Map();
+      }
       this.state.isLive = isLive;
       this.state.lastUpdated = timestamp;
 
@@ -343,16 +351,14 @@ class App {
     const modal = document.getElementById('printModal');
     if (!modal) return;
 
-    const { view, weeks, currentWeekNum, selectedDayIdx, selectedRooms, selectedBans } = this.state;
+    const { view, weeks, currentWeekNum, selectedDayIdx } = this.state;
     const weekObj = weeks.find(w => w.weekNum === currentWeekNum) || weeks[0];
 
-    // 1. View badge
-    const viewBadge = document.getElementById('printModalViewBadge');
-    if (viewBadge) {
-      if (view === 'moving') viewBadge.textContent = '이동수업 출석부 (1~12반 교실)';
-      else if (view === 'homeroom') viewBadge.textContent = '원적학급 주간 출석부 (1~11반)';
-      else if (view === 'lunch') viewBadge.textContent = '월별 예상 급식 캘린더';
-      else if (view === 'finder') viewBadge.textContent = '학생·시간표 검색 결과';
+    // 1. View select dropdown (defaults to the currently displayed rollbook on screen)
+    const viewSelect = document.getElementById('printModalViewSelect');
+    const defaultPrintView = (view === 'moving') ? 'moving' : 'homeroom';
+    if (viewSelect) {
+      viewSelect.value = defaultPrintView;
     }
 
     // 2. Week select
@@ -380,39 +386,57 @@ class App {
     }
 
     // 4. Target classes / rooms grid
+    this.updatePrintModalTargets(defaultPrintView);
+
+    this.calculatePrintModalEstimate();
+    modal.style.display = 'flex';
+  }
+
+  updatePrintModalTargets(targetView) {
     const targetLabel = document.getElementById('printModalTargetLabel');
     const targetGrid = document.getElementById('printModalTargetGrid');
     const selectAllTargets = document.getElementById('printModalSelectAllTargets');
+    const dayContainer = document.getElementById('printModalDayCheckboxes');
+    const periodLabel = document.getElementById('printModalPeriodLabel');
+    const homeroomNote = document.getElementById('printModalHomeroomDayNote');
 
-    if (targetGrid) {
-      if (view === 'moving') {
-        if (targetLabel) targetLabel.textContent = '인쇄 대상 교실 선택 (1~12반):';
-        targetGrid.innerHTML = this.allRooms.map(r => `
-          <label class="target-check-card">
-            <input type="checkbox" class="print-target-cb" value="${r}" ${selectedRooms.includes(r) ? 'checked' : ''} />
-            <span>${r}</span>
-          </label>
-        `).join('');
-      } else if (view === 'homeroom') {
-        if (targetLabel) targetLabel.textContent = '인쇄 대상 학급 선택 (1~11반):';
-        targetGrid.innerHTML = this.allBans.map(b => `
-          <label class="target-check-card">
-            <input type="checkbox" class="print-target-cb" value="${b}" ${selectedBans.includes(b) ? 'checked' : ''} />
-            <span>${b}반</span>
-          </label>
-        `).join('');
-      } else {
-        if (targetLabel) targetLabel.textContent = '인쇄 대상:';
-        targetGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 10px; color: var(--text-muted); font-size: 13px;">현재 화면(1페이지)이 인쇄됩니다.</div>`;
-      }
+    if (!targetGrid) return;
+
+    if (targetView === 'moving') {
+      if (periodLabel) periodLabel.textContent = '주차 및 요일 범위:';
+      if (dayContainer) dayContainer.style.display = 'flex';
+      if (homeroomNote) homeroomNote.style.display = 'none';
+
+      if (targetLabel) targetLabel.textContent = '인쇄 대상 교실 선택 (1~12반):';
+      targetGrid.innerHTML = this.allRooms.map(r => `
+        <label class="target-check-card">
+          <input type="checkbox" class="print-target-cb" value="${r}" checked />
+          <span>${r}</span>
+        </label>
+      `).join('');
+    } else if (targetView === 'homeroom') {
+      if (periodLabel) periodLabel.textContent = '인쇄 대상 주차 선택:';
+      if (dayContainer) dayContainer.style.display = 'none';
+      if (homeroomNote) homeroomNote.style.display = 'block';
+
+      if (targetLabel) targetLabel.textContent = '인쇄 대상 학급 선택 (1~11반):';
+      targetGrid.innerHTML = this.allBans.map(b => `
+        <label class="target-check-card">
+          <input type="checkbox" class="print-target-cb" value="${b}" checked />
+          <span>${b}반</span>
+        </label>
+      `).join('');
+    } else {
+      if (periodLabel) periodLabel.textContent = '주차 및 요일:';
+      if (dayContainer) dayContainer.style.display = 'flex';
+      if (homeroomNote) homeroomNote.style.display = 'none';
+      if (targetLabel) targetLabel.textContent = '인쇄 대상:';
+      targetGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 10px; color: var(--text-muted); font-size: 13px;">현재 화면(1페이지)이 인쇄됩니다.</div>`;
     }
 
     if (selectAllTargets) {
       selectAllTargets.checked = true;
     }
-
-    this.calculatePrintModalEstimate();
-    modal.style.display = 'flex';
   }
 
   setupPrintModalListeners() {
@@ -424,6 +448,7 @@ class App {
     const confirmBtn = document.getElementById('confirmPrintModalBtn');
     const selectAllTargets = document.getElementById('printModalSelectAllTargets');
     const weekSelect = document.getElementById('printModalWeekSelect');
+    const viewSelect = document.getElementById('printModalViewSelect');
 
     const closeModal = () => { modal.style.display = 'none'; };
 
@@ -434,6 +459,13 @@ class App {
       if (e.target === modal) closeModal();
     });
 
+    if (viewSelect) {
+      viewSelect.addEventListener('change', () => {
+        this.updatePrintModalTargets(viewSelect.value);
+        this.calculatePrintModalEstimate();
+      });
+    }
+
     if (weekSelect) {
       weekSelect.addEventListener('change', () => {
         this.updatePrintModalDayLabels();
@@ -443,7 +475,7 @@ class App {
 
     if (selectAllTargets) {
       selectAllTargets.addEventListener('change', (e) => {
-        document.querySelectorAll('.print-target-cb').forEach(cb => {
+        modal.querySelectorAll('.print-target-cb').forEach(cb => {
           cb.checked = e.target.checked;
         });
         this.calculatePrintModalEstimate();
@@ -452,6 +484,11 @@ class App {
 
     modal.addEventListener('change', (e) => {
       if (e.target.classList.contains('print-day-cb') || e.target.classList.contains('print-target-cb')) {
+        if (e.target.classList.contains('print-target-cb') && selectAllTargets) {
+          const allTargets = modal.querySelectorAll('.print-target-cb');
+          const checkedTargets = modal.querySelectorAll('.print-target-cb:checked');
+          selectAllTargets.checked = (allTargets.length > 0 && allTargets.length === checkedTargets.length);
+        }
         this.calculatePrintModalEstimate();
       }
     });
@@ -481,7 +518,9 @@ class App {
   }
 
   calculatePrintModalEstimate() {
-    const { view } = this.state;
+    const viewSelect = document.getElementById('printModalViewSelect');
+    const targetPrintView = viewSelect ? viewSelect.value : ((this.state.view === 'moving') ? 'moving' : 'homeroom');
+
     const countEl = document.getElementById('printModalPageCount');
     const summaryEl = document.getElementById('printModalSummary');
     if (!countEl) return;
@@ -492,10 +531,10 @@ class App {
     let estimate = 0;
     let summaryText = '';
 
-    if (view === 'moving') {
+    if (targetPrintView === 'moving') {
       estimate = checkedTargets.length * checkedDays.length * 2;
       summaryText = `교실 ${checkedTargets.length}개 × 선택 요일 ${checkedDays.length}일 × 오전/오후 2장 = 약 ${estimate}장`;
-    } else if (view === 'homeroom') {
+    } else if (targetPrintView === 'homeroom') {
       estimate = checkedTargets.length;
       summaryText = `선택 학급 ${checkedTargets.length}개 × 주간 출석부 1장 = 약 ${estimate}장`;
     } else {
@@ -511,9 +550,12 @@ class App {
     const modal = document.getElementById('printModal');
     if (modal) modal.style.display = 'none';
 
-    const { view, allStudents, holidaysMap, weeks, showSpecialStudents, attendanceOverrides } = this.state;
-    const container = document.getElementById('appOutput');
+    const { allStudents, holidaysMap, weeks, showSpecialStudents, attendanceOverrides } = this.state;
+    const container = document.getElementById('appOutput') || document.getElementById('contentContainer');
     if (!container) return;
+
+    const viewSelect = document.getElementById('printModalViewSelect');
+    const targetPrintView = viewSelect ? viewSelect.value : ((this.state.view === 'moving') ? 'moving' : 'homeroom');
 
     const weekSelect = document.getElementById('printModalWeekSelect');
     const targetWeekNum = weekSelect ? parseInt(weekSelect.value, 10) : this.state.currentWeekNum;
@@ -527,14 +569,14 @@ class App {
     // Save current screen view HTML to restore after printing
     this._cachedViewBeforePrint = container.innerHTML;
 
-    // Render print view
+    // Render print view based on selected dropdown rollbook
     let printHtml = '';
-    if (view === 'moving') {
+    if (targetPrintView === 'moving') {
       printHtml = MovingRollbookView.render(allStudents, holidaysMap, checkedTargets, targetDays, {
         showSpecialStudents,
         overridesMap: attendanceOverrides
       });
-    } else if (view === 'homeroom') {
+    } else if (targetPrintView === 'homeroom') {
       const bansToPrint = checkedTargets.map(Number);
       printHtml = HomeroomRollbookView.render(allStudents, holidaysMap, bansToPrint, weekObj, {
         showSpecialStudents,
@@ -844,7 +886,7 @@ class App {
   printNeisReport() {
     if (!this._lastNeisReport) return;
     const r = this._lastNeisReport;
-    const container = document.getElementById('appOutput');
+    const container = document.getElementById('appOutput') || document.getElementById('contentContainer');
     const tableContainer = document.getElementById('neisTableContainer');
     const modal = document.getElementById('neisReportModal');
     if (!container || !tableContainer || !modal) return;
@@ -888,7 +930,7 @@ class App {
 
   // ── Attendance Interactive Cells (Click, Right-Click, Undo) ──────────────
   setupAttendanceInteractionListeners() {
-    const container = document.getElementById('appOutput');
+    const container = document.getElementById('appOutput') || document.getElementById('contentContainer');
     if (!container) return;
 
     // 1. Left Click: Cycle Attendance Status or Mark All Present Button
@@ -1298,6 +1340,13 @@ class App {
   }
 
   applyAttendanceChange(cellEl, nextStatus) {
+    if (cellEl.dataset.isRegistry === '1') {
+      const cur = cellEl.dataset.currentStatus || '';
+      const msg = `[안내: 대장 공식 결석계 승인 건]\n\n이 학생은 결석계 대장에 [${cur}] 상태로 공식 승인되어 있습니다.\n\n현장 출결기록을 [${nextStatus || '출석'}](으)로 변경하시겠습니까?\n\n(※ 대장 공식 승인이 최우선 적용되므로, 현장 기록 변경 시 '상충(⚡)'으로 표시됩니다)`;
+      if (!confirm(msg)) {
+        return;
+      }
+    }
     const { studentId, date, period, ban, num, name, room, originalStatus, currentStatus } = cellEl.dataset;
     const key = `${date}_${period}_${studentId}`;
 
@@ -1570,6 +1619,18 @@ class App {
     const key = `${cellEl.dataset.date}_${cellEl.dataset.period}_${cellEl.dataset.studentId}`;
     const rec = this.state.attendanceOverrides.get(key);
     cellEl.classList.toggle('doc-submitted', !!(rec && rec.docSubmitted));
+
+    // Update registry priority and conflict classes live
+    if (this.state.registryMap && this.state.registryMap.has(key)) {
+      const regRec = this.state.registryMap.get(key);
+      const isReg = true;
+      const hasConflict = !!(statusText && !RollbookModel.isStatusEquivalent(statusText, regRec.rawStatus) && statusText !== '異쒖꽍');
+      cellEl.dataset.isRegistry = '1';
+      cellEl.dataset.hasConflict = hasConflict ? '1' : '0';
+      cellEl.dataset.conflictOverrideStatus = hasConflict ? statusText : '';
+      cellEl.classList.add('is-registry-approved');
+      cellEl.classList.toggle('has-conflict', hasConflict);
+    }
   }
 
   updateRemarkDom(studentId) {
@@ -2166,7 +2227,7 @@ class App {
   }
 
   renderContent() {
-    const container = document.getElementById('appOutput');
+    const container = document.getElementById('appOutput') || document.getElementById('contentContainer');
     if (!container) return;
 
     const { view, allStudents, holidaysMap, weeks, currentWeekNum, selectedDayIdx, selectedRooms, selectedBans, selectedLunchYear, selectedLunchMonth, finderQuery, showSpecialStudents } = this.state;
@@ -2360,6 +2421,10 @@ class App {
     try {
       const csv = await SheetAPI.fetchSheetByName('대장');
       this.state.absenceRegistryRecords = AbsenceRegistryView.parseRegistryCsv(csv);
+      this.state.registryMap = RollbookModel.parseRegistryData(this.state.absenceRegistryRecords, this.state.allStudents);
+      if (this.state.view === 'absence' || this.state.view === 'homeroom' || this.state.view === 'moving') {
+        this.renderContent();
+      }
       if (this.state.view === 'absence') {
         this.renderContent();
       }
