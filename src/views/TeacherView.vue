@@ -141,13 +141,13 @@
           <!-- 사용자 정보 -->
           <div class="px-0.5">
             <p class="text-sm font-bold text-slate-900 m-0 leading-tight">
-              {{ auth.teacherName ? `${auth.teacherName} 선생님` : '담임교사 선생님' }}
+              {{ auth.teacherName ? `${auth.teacherName} 선생님` : '교과교사 선생님' }}
             </p>
             <p class="text-xs text-slate-500 font-medium m-0 mt-0.5">{{ roleLabel }}</p>
           </div>
 
           <!-- 액션 버튼 -->
-          <div class="pt-2 border-t border-slate-200/80 flex flex-col gap-1.5">
+          <div v-if="!auth.isGuest" class="pt-2 border-t border-slate-200/80 flex flex-col gap-1.5">
             <button
               @click="switchToRuralSystem"
               class="w-full text-left text-xs font-semibold text-emerald-600 hover:text-emerald-800 flex items-center gap-1.5 py-1 transition-colors cursor-pointer bg-transparent border-none"
@@ -258,11 +258,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 학교장추천전형 최초 접속 안내 모달 -->
+    <PrincipalNoticeModal />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import PrincipalNoticeModal from '../components/common/PrincipalNoticeModal.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { teacherChangePassword, getCurrentRound } from '../api/teacher.js'

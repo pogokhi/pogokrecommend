@@ -1,9 +1,75 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center p-6 bg-slate-100 font-sans transition-colors duration-300">
-    <div
-      class="w-full bg-white shadow-xl border border-slate-200/80 transition-all duration-300 relative overflow-hidden"
-      style="max-width: 460px; border-radius: 28px; padding: 2.25rem 2.25rem 2.5rem;"
+  <div class="min-h-screen bg-slate-100 font-sans transition-colors duration-300 flex flex-col justify-between">
+    <!-- 상단 헤더 바 (입시 캘린더 토글 버튼) -->
+    <header class="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-2 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 border border-slate-200/80 text-blue-700 text-xs font-extrabold shadow-2xs">
+          <span>🏫</span>
+          <span>{{ schoolName }}</span>
+        </span>
+        <span v-if="viewMode === 'calendar'" class="text-xs font-bold text-slate-500 hidden sm:inline">
+          {{ displaySystemName }}
+        </span>
+      </div>
+
+      <!-- 우측 액션 버튼: 로그인 모드일 때는 '입시 캘린더', 캘린더 모드일 때는 '일정 새로고침' + '로그인 창으로 돌아가기' -->
+      <div>
+        <button
+          v-if="viewMode === 'login'"
+          type="button"
+          @click="openCalendarView"
+          class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>📅</span>
+          <span>{{ calendarTitle }}</span>
+        </button>
+
+        <div v-else class="flex items-center gap-2">
+          <!-- 일정 새로고침 버튼 (캘린더 모드) -->
+          <button
+            type="button"
+            @click="handleCalendarRefresh"
+            :disabled="calendarLoading"
+            class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="구글 시트 최신 일정 새로고침"
+          >
+            <span :class="{ 'animate-spin': calendarLoading }">🔄</span>
+            <span>{{ calendarLoading ? '동기화 중…' : '일정 새로고침' }}</span>
+          </button>
+
+          <!-- 대입 통계 시스템으로 돌아가기 버튼 (대입 통계 시스템에서 캘린더로 진입한 로그인 사용자 전용) -->
+          <button
+            v-if="isFromStat"
+            type="button"
+            @click="goToStatDashboard"
+            class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
+            title="대입 통계 시스템 대시보드로 이동"
+          >
+            <span>📊</span>
+            <span>대입 통계 시스템으로 돌아가기</span>
+          </button>
+
+          <button
+            type="button"
+            @click="openLoginView"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-white bg-slate-900 hover:bg-slate-800 shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer border-none"
+          >
+            <span>{{ (auth.isAuthenticated && !isFromStat) ? '🔙' : '🔐' }}</span>
+            <span>{{ (auth.isAuthenticated && !isFromStat) ? '시스템으로 돌아가기' : '로그인 창으로 돌아가기' }}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 1. 로그인 폼 카드 (viewMode === 'login') -->
+    <main
+      v-if="viewMode === 'login'"
+      class="flex-1 flex items-center justify-center p-6"
     >
+      <div
+        class="w-full bg-white shadow-xl border border-slate-200/80 transition-all duration-300 relative overflow-hidden"
+        style="max-width: 460px; border-radius: 28px; padding: 2.25rem 2.25rem 2.5rem;"
+      >
       <!-- Decorative background blur -->
       <div
         :class="[
@@ -20,35 +86,47 @@
 
       <!-- 헤더 -->
       <div class="text-center mb-6 relative">
-        <div
-          :class="[
-            'inline-flex items-center justify-center rounded-2xl mb-3 shadow-xs border transition-all duration-300',
-            activeTab === 'student' ? 'bg-blue-50 text-blue-600 border-blue-100' : (activeTab === 'graduate' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100')
-          ]"
-          style="width: 56px; height: 56px;"
-        >
-          <GraduationCap v-if="activeTab === 'student'" class="w-7 h-7" />
-          <School v-else-if="activeTab === 'graduate'" class="w-7 h-7" />
-          <UserCheck v-else class="w-7 h-7" />
+        <!-- 학교명 배지 -->
+        <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-extrabold mb-2.5 shadow-2xs">
+          <span>🏫</span>
+          <span>{{ schoolName }}</span>
         </div>
-        <p class="text-xs font-extrabold text-blue-600 mb-1.5 tracking-wide">{{ schoolName }}</p>
-        <h1 class="text-slate-900 m-0 flex flex-col items-center justify-center gap-1 font-extrabold tracking-tight leading-snug">
-          <span class="text-[15px] text-slate-900">학교장 추천자 선발 시스템</span>
-          <template v-if="isRuralSystemEnabled && isExamIntentSystemEnabled">
-            <span class="text-xs text-blue-600 font-bold leading-none my-0.5">및</span>
-            <span class="text-[15px] text-slate-900">농어촌(기회균형) 전형 추천 등록 시스템</span>
-            <span class="text-xs text-blue-600 font-bold leading-none my-0.5">및</span>
-            <span class="text-[15px] text-slate-900">수능응시 · 수시/정시 원서접수계획 등록 시스템</span>
-          </template>
-          <template v-else-if="isRuralSystemEnabled">
-            <span class="text-xs text-blue-600 font-bold leading-none my-0.5">및</span>
-            <span class="text-[15px] text-slate-900">농어촌(기회균형) 전형 추천 등록 시스템</span>
-          </template>
-          <template v-else-if="isExamIntentSystemEnabled">
-            <span class="text-xs text-blue-600 font-bold leading-none my-0.5">및</span>
-            <span class="text-[15px] text-slate-900">수능응시 · 수시/정시 원서접수계획 등록 시스템</span>
-          </template>
+
+        <!-- 통합 시스템 명칭 (관리자 설정값 연동) -->
+        <h1 class="text-slate-900 m-0 text-xl sm:text-2xl font-black tracking-tight leading-snug">
+          {{ displaySystemName }}
         </h1>
+      </div>
+
+      <!-- 학교 관리자 Secret 접속 통로 상태 안내 배너 -->
+      <div v-if="route.query.error === 'secret_closed'" class="mb-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+        <span class="text-base shrink-0 mt-0.5">🔒</span>
+        <div class="leading-relaxed">
+          <strong class="font-black text-amber-950 block">학교 관리자 Secret 접속 통로가 닫혀 있습니다.</strong>
+          <span class="text-[11px] text-amber-800">
+            현재 해당 서비스의 임시 게스트 열람이 비활성화(닫힘) 상태입니다. 열람이 필요하신 경우 학교 관리자(대입 담당 선생님)에게 문의하여 통로를 열어달라고 요청해 주세요.
+          </span>
+        </div>
+      </div>
+
+      <div v-else-if="route.query.error === 'secret_expired'" class="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-start gap-2.5 shadow-2xs">
+        <span class="text-base shrink-0 mt-0.5">⌛</span>
+        <div class="leading-relaxed">
+          <strong class="font-black text-rose-950 block">비밀 접속 링크의 유효기간이 만료되었습니다.</strong>
+          <span class="text-[11px] text-rose-800">
+            해당 비밀 접속 링크는 관리자가 지정한 유효 기간이 경과하여 만료되었습니다. 열람이 필요하신 경우 관리자(대입 담당 선생님)에게 새로운 접속 링크를 요청해 주세요.
+          </span>
+        </div>
+      </div>
+
+      <div v-else-if="route.query.error === 'secret_invalid'" class="mb-5 p-3.5 rounded-2xl bg-slate-100 border border-slate-300 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs">
+        <span class="text-base shrink-0 mt-0.5">⚠️</span>
+        <div class="leading-relaxed">
+          <strong class="font-black text-slate-900 block">유효하지 않은 비밀 접속 경로입니다.</strong>
+          <span class="text-[11px] text-slate-600">
+            접속 링크의 암호화 키 또는 모듈 코드가 올바르지 않습니다. 전달받으신 원본 비밀 접속 링크를 다시 확인해 주세요.
+          </span>
+        </div>
       </div>
 
       <!-- 3가지 역할 구분 탭 (재학생 / 졸업생 / 교사) -->
@@ -68,6 +146,7 @@
         </button>
 
         <button
+          v-if="isGraduateTabVisible"
           type="button"
           @click="switchTab('graduate')"
           :class="[
@@ -298,7 +377,7 @@
                 style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; box-sizing: border-box;"
               >
                 <option :value="true">재학생</option>
-                <option :value="false">졸업생</option>
+                <option v-if="isGraduateTabVisible" :value="false">졸업생</option>
               </select>
             </div>
             <div>
@@ -535,24 +614,252 @@
         </button>
       </div>
       <p v-if="success" class="text-sm font-semibold text-center mt-4 text-emerald-600 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">{{ success }}</p>
-    </div>
+      </div>
+    </main>
+
+    <!-- 2. 대입 종합 일정 캘린더 화면 (viewMode === 'calendar') -->
+    <main
+      v-else
+      class="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-16 animate-in fade-in duration-200"
+    >
+      <AdmissionCalendarWidget ref="calendarWidgetRef" />
+    </main>
+
+    <!-- 하단 푸터 (라이선스 표기) -->
+    <footer class="w-full py-4 text-center text-xs text-slate-500 shrink-0">
+      <div class="max-w-6xl mx-auto px-4 flex items-center justify-center gap-2">
+        <span>License:</span>
+        <div class="relative group inline-flex items-center">
+          <a
+            href="https://polyformproject.org/licenses/noncommercial/1.0.0/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-slate-600 hover:text-blue-600 font-semibold underline underline-offset-2 decoration-slate-300 hover:decoration-blue-400 transition-colors cursor-pointer"
+          >
+            PolyForm Noncommercial 1.0.0
+          </a>
+
+          <!-- 호버 시 상세 툴팁 -->
+          <div
+            class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 sm:w-80 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 text-left leading-relaxed border border-slate-700 font-normal"
+          >
+            <p class="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+              <span>⚖️</span>
+              <span>라이선스 안내</span>
+            </p>
+            <p class="m-0 text-slate-200 text-xs leading-normal">
+              본 프로그램은 <strong>PolyForm Noncommercial 1.0.0</strong> 라이선스에 따라 학교·교육청 등 <strong>비상업적 목적에 한해</strong> 무료로 사용할 수 있습니다. 학원·유료 입시 컨설팅 등 영리 목적의 사교육 기관에서의 사용은 엄격히 금지됩니다.
+            </p>
+            <!-- 말풍선 꼬리 -->
+            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+          </div>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { GraduationCap, School, UserCheck, CheckCircle } from 'lucide-vue-next'
+import AdmissionCalendarWidget from '../components/calendar/AdmissionCalendarWidget.vue'
 import { useAuthStore } from '../stores/auth'
 import { schoolName, fetchSchoolName } from '../utils/schoolConfig'
 import { checkRuralSystemOpenStatus } from '../api/ruralApi.js'
 import { checkExamIntentSystemEnabled } from '../api/examIntentApi.js'
+import { checkJuniorCollegeSystemEnabled } from '../api/juniorCollegeApi.js'
+import { fetchLoginSystemName, loginSystemName, fetchSuiteModules, getModuleStatus, DEFAULT_SYSTEM_NAME } from '../api/suiteModulesApi.js'
+import { setStatSessionPassword } from '../api/statApi.js'
+import { supabase } from '../utils/supabaseClient'
+import { fetchRoundSchedulesMap, parseKstDate } from '../utils/roundSchedule'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
+
+// 오늘 날짜 기준 현 학년도 및 대입 연도 동적 계산 (3월 1일 ~ 이듬해 2월 말일 기준)
+const calendarTitle = computed(() => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = d.getMonth() + 1
+  const schoolYear = m >= 3 ? y : y - 1
+  const collegeYear = schoolYear + 1
+  return `${schoolYear}학년도 학사일정 & ${collegeYear}대입 캘린더`
+})
+
+// 화면 모드: 'login' (기본 로그인 카드) | 'calendar' (입시 캘린더 화면)
+// URL 경로가 /calendar 이거나 ?view=calendar 인 경우 캘린더 화면으로 다이렉트 진입
+const viewMode = ref((route.path.startsWith('/calendar') || route.query.view === 'calendar') ? 'calendar' : 'login')
+
+function openCalendarView() {
+  viewMode.value = 'calendar'
+  if (!route.path.startsWith('/calendar')) {
+    router.push('/calendar')
+  }
+}
+
+const isFromStat = computed(() => {
+  const isLogged = auth.isAuthenticated || auth.isAdmin || auth.isTeacher || auth.isStudent
+  if (!isLogged) return false
+  return route.query.from === 'stat' || sessionStorage.getItem('pcm_calendar_from') === 'stat'
+})
+
+function goToStatDashboard() {
+  try {
+    sessionStorage.removeItem('pcm_calendar_from')
+  } catch (e) {}
+  router.push('/stat')
+}
+
+function openLoginView() {
+  try {
+    sessionStorage.removeItem('pcm_calendar_from')
+  } catch (e) {}
+  if (auth.isAuthenticated) {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/select-system')
+    }
+    return
+  }
+  viewMode.value = 'login'
+  if (route.path !== '/login') {
+    router.push('/login')
+  }
+}
+
+watch(() => route.path, (newPath) => {
+  if (newPath.startsWith('/calendar')) {
+    viewMode.value = 'calendar'
+  } else if (newPath === '/login') {
+    viewMode.value = 'login'
+  }
+})
+const calendarWidgetRef = ref(null)
+const calendarLoading = computed(() => calendarWidgetRef.value?.loading || false)
+
+function handleCalendarRefresh() {
+  calendarWidgetRef.value?.refreshData(true)
+}
 
 // 활성화된 역할 탭: 'student' (재학생), 'graduate' (졸업생), 'teacher' (교사/관리자)
 const activeTab = ref('student')
+
+// ── 졸업생 로그인 탭 노출 제어 ──────────────────────────────────────────
+// 관리자가 학교장 추천자 선발, 농어촌 추천, 전문대학 추천 중 1개 이상을 오픈했을 때만 졸업생 탭 노출
+const isPrincipalOpen = ref(false)
+const isRuralOpen = ref(false)
+const isJuniorCollegeOpen = ref(false)
+
+// 1. 초기 로컬 스토리지 캐시 기반 빠른 사전 동기화 (깜빡임 방지)
+try {
+  const cachedModulesRaw = localStorage.getItem('suite_modules_cache')
+  if (cachedModulesRaw) {
+    const cachedMods = JSON.parse(cachedModulesRaw)
+    if (Array.isArray(cachedMods)) {
+      const pMod = cachedMods.find(m => m.id === 'principal')
+      if (pMod) {
+        const pStatus = getModuleStatus(pMod)
+        const pForGrad = !pMod.targetRoles || pMod.targetRoles.includes('graduate')
+        isPrincipalOpen.value = pMod.isEnabled !== false && pStatus.isOpen && pForGrad
+      }
+      const rMod = cachedMods.find(m => m.id === 'rural')
+      const rEnabled = localStorage.getItem('pcm_enable_rural_system') === 'true'
+      if (rMod) {
+        const rStatus = getModuleStatus(rMod)
+        const rForGrad = !rMod.targetRoles || rMod.targetRoles.includes('graduate')
+        isRuralOpen.value = rMod.isEnabled !== false && rEnabled && rStatus.isOpen && rForGrad
+      }
+      const jcMod = cachedMods.find(m => m.id === 'junior_college')
+      const jcEnabled = localStorage.getItem('pcm_enable_junior_college_system') !== 'false'
+      if (jcMod) {
+        const jcStatus = getModuleStatus(jcMod)
+        const jcForGrad = !jcMod.targetRoles || jcMod.targetRoles.includes('graduate')
+        isJuniorCollegeOpen.value = jcMod.isEnabled !== false && jcEnabled && jcStatus.isOpen && jcForGrad
+      }
+    }
+  }
+} catch (e) {}
+
+const isGraduateTabVisible = computed(() => {
+  return isPrincipalOpen.value || isRuralOpen.value || isJuniorCollegeOpen.value
+})
+
+watch(isGraduateTabVisible, (visible) => {
+  if (!visible) {
+    if (activeTab.value === 'graduate') {
+      activeTab.value = 'student'
+    }
+    if (!signupIsEnrolled.value) {
+      signupIsEnrolled.value = true
+    }
+  }
+})
+
+async function updateGraduateSystemsOpenStatus() {
+  try {
+    const mods = suiteModules.value && suiteModules.value.length > 0 ? suiteModules.value : await fetchSuiteModules()
+    if (mods && mods.length > 0) {
+      suiteModules.value = mods
+    }
+
+    // 1. 전문대학 학교장 추천 시스템 점검
+    try {
+      const jcEnabled = await checkJuniorCollegeSystemEnabled()
+      const mJc = suiteModules.value.find(m => m.id === 'junior_college')
+      const jcModOpen = mJc ? (mJc.isEnabled !== false && getModuleStatus(mJc).isOpen && (!mJc.targetRoles || mJc.targetRoles.includes('graduate'))) : true
+      isJuniorCollegeOpen.value = jcModOpen && (mJc ? mJc.isEnabled !== false : jcEnabled)
+    } catch (e) {
+      console.warn('Failed to check JC status for graduate tab:', e)
+    }
+
+    // 2. 농어촌(기회균형) 전형 추천 등록 시스템 점검
+    try {
+      const ruralStatus = await checkRuralSystemOpenStatus()
+      const mRural = suiteModules.value.find(m => m.id === 'rural')
+      isRuralSystemEnabled.value = mRural ? mRural.isEnabled : (ruralStatus.isEnabled === true)
+      const ruralModOpen = mRural ? (mRural.isEnabled !== false && getModuleStatus(mRural).isOpen && (!mRural.targetRoles || mRural.targetRoles.includes('graduate'))) : true
+      isRuralOpen.value = ruralModOpen && (ruralStatus?.isEnabled === true && ruralStatus?.isOpen === true)
+    } catch (e) {
+      console.warn('Failed to check rural status for graduate tab:', e)
+    }
+
+    // 3. 학교장 추천자 선발 시스템 점검
+    try {
+      const mPrincipal = suiteModules.value.find(m => m.id === 'principal')
+      const principalModOpen = mPrincipal ? (mPrincipal.isEnabled !== false && getModuleStatus(mPrincipal).isOpen && (!mPrincipal.targetRoles || mPrincipal.targetRoles.includes('graduate'))) : true
+
+      let isPrincipalAllEnded = false
+      let totalRounds = 3
+      if (supabase) {
+        const { data: cfg } = await supabase.from('config').select('value').eq('key', 'total_rounds').maybeSingle()
+        if (cfg && cfg.value) totalRounds = parseInt(cfg.value, 10) || 3
+      }
+      const schedulesMap = await fetchRoundSchedulesMap()
+      const lastRoundId = totalRounds
+      const lastSched = schedulesMap[lastRoundId]
+      const now = new Date()
+      if (lastSched) {
+        const announceTarget = lastSched.announce_end || lastSched.announce_date
+        const announceEndDt = parseKstDate(announceTarget, true)
+        if (announceEndDt && now > announceEndDt) {
+          isPrincipalAllEnded = true
+        }
+      }
+      isPrincipalOpen.value = principalModOpen && !isPrincipalAllEnded
+    } catch (e) {
+      console.warn('Failed to check principal status for graduate tab:', e)
+    }
+
+    if (!isGraduateTabVisible.value && activeTab.value === 'graduate') {
+      activeTab.value = 'student'
+    }
+  } catch (err) {
+    console.warn('Failed to update graduate systems open status:', err)
+  }
+}
 
 const isRuralSystemEnabled = ref(localStorage.getItem('pcm_enable_rural_system') === 'true')
 const isExamIntentSystemEnabled = ref(localStorage.getItem('pcm_enable_exam_intent_system') !== 'false')
@@ -590,11 +897,37 @@ const cleanPhoneInput = computed(() => {
   return signupPhone.value.replace(/\D/g, '')
 })
 
+const suiteModules = ref([])
+const displaySystemName = computed(() => loginSystemName.value || DEFAULT_SYSTEM_NAME || '3학년 진학·학사 통합 포털')
+
+const activeModuleBadges = computed(() => {
+  if (suiteModules.value && suiteModules.value.length > 0) {
+    return suiteModules.value
+      .filter(m => m.isEnabled)
+      .map(m => m.name.replace(' 시스템', ''))
+  }
+  const badges = ['학교장 추천자 선발']
+  if (isRuralSystemEnabled.value) badges.push('농어촌·기회균형')
+  if (isExamIntentSystemEnabled.value) badges.push('수능·원서접수계획')
+  badges.push('선택교과 출석관리')
+  return badges
+})
+
 onMounted(async () => {
   fetchSchoolName()
   loginId.value = ''
   loginStudentCode.value = ''
   loginPassword.value = ''
+
+  await fetchLoginSystemName()
+
+  try {
+    const mods = await fetchSuiteModules()
+    if (mods && mods.length > 0) {
+      suiteModules.value = mods
+    }
+  } catch (e) {}
+
   try {
     const status = await checkRuralSystemOpenStatus()
     isRuralSystemEnabled.value = status.isEnabled === true
@@ -602,9 +935,14 @@ onMounted(async () => {
   try {
     isExamIntentSystemEnabled.value = await checkExamIntentSystemEnabled()
   } catch (e) {}
+
+  await updateGraduateSystemsOpenStatus()
 })
 
 function switchTab(tab) {
+  if (tab === 'graduate' && !isGraduateTabVisible.value) {
+    return
+  }
   activeTab.value = tab
   error.value = null
   success.value = null
@@ -615,7 +953,7 @@ function switchTab(tab) {
 }
 
 function openSignUpFor(type) {
-  if (type === 'graduate') {
+  if (type === 'graduate' && isGraduateTabVisible.value) {
     signupIsEnrolled.value = false
   } else {
     signupIsEnrolled.value = true
@@ -645,6 +983,9 @@ async function handleLogin() {
         await auth.loginTeacher(id, pw)
       }
     } else if (activeTab.value === 'graduate') {
+      if (!isGraduateTabVisible.value) {
+        throw new Error('현재 졸업생 대상 추천 신청 시스템(학교장 추천, 농어촌, 전문대 추천)이 모두 오픈 기간이 아닙니다.')
+      }
       const code = loginStudentCode.value.trim()
       const pw = loginPassword.value
       if (!/^\d{5}$/.test(code)) {
@@ -663,6 +1004,9 @@ async function handleLogin() {
         throw new Error('학번은 5자리 숫자여야 합니다 (예: 30120).')
       }
       await auth.loginStudent(code, pw, true)
+    }
+    if (activeTab.value === 'teacher') {
+      setStatSessionPassword(loginPassword.value)
     }
     router.push('/select-system')
   } catch (e) {

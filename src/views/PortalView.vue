@@ -13,7 +13,7 @@
           </div>
           <div class="flex flex-col leading-tight">
             <span class="text-xs font-bold text-blue-600 tracking-wide">{{ schoolName }}</span>
-            <h1 class="text-base font-bold text-slate-900 m-0">추천자 관리 포털</h1>
+            <h1 class="text-base font-bold text-slate-900 m-0">{{ displaySystemName }}</h1>
           </div>
         </div>
 
@@ -27,6 +27,25 @@
             </p>
             <p v-if="userSubInfo" class="text-xs text-slate-500 font-semibold m-0 mt-0.5">{{ userSubInfo }}</p>
           </div>
+          <button
+            v-if="auth.isAdmin"
+            @click="enterSystemSettings"
+            class="text-xs font-bold text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-800 px-3 py-2 rounded-lg transition-all cursor-pointer border border-slate-300 flex items-center gap-1.5 shadow-2xs"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>관리자 설정</span>
+          </button>
+          <button
+            @click="router.push('/calendar')"
+            class="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-lg transition-all cursor-pointer border border-blue-200 flex items-center gap-1.5 shadow-2xs"
+            title="학사일정 & 대입 캘린더"
+          >
+            <span>📅</span>
+            <span>캘린더</span>
+          </button>
           <button
             @click="handleLogout"
             class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-lg transition-all cursor-pointer border border-slate-200"
@@ -48,23 +67,26 @@
     <!-- 자격 점검 완료 후 메인 콘텐츠 전체 일괄 표출 -->
     <main v-else class="max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center">
       <div class="text-center max-w-2xl mb-12">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold mb-3 border border-blue-200">
-          <span>{{ auth.isTeacher ? '선택교과 출석관리' : (isRuralSystemEnabled ? '통합 추천자 관리 시스템' : '학교장 추천자 선발 시스템') }}</span>
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-extrabold mb-3 border border-blue-200 shadow-2xs">
+          <span>🏫 {{ schoolName }}</span>
+          <span class="text-slate-300">|</span>
+          <span>{{ displaySystemName }}</span>
         </div>
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
-          {{ schoolName }} {{ auth.isTeacher ? '출석관리 포털' : '추천 시스템 포털' }}
+        <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-3">
+          {{ displaySystemName }}
         </h2>
         <p class="text-base text-slate-600 leading-relaxed">
-          {{ auth.isTeacher ? '선택교과 이동수업 및 원적학급 출석관리 시스템을 이용해 주세요.' : '이용하실 추천 시스템을 아래에서 선택해 주세요.' }}
+          {{ auth.isTeacher ? '선택교과 출석부 관리 및 담당 학급 진학 업무 시스템을 선택해 주세요.' : '이용하실 서비스를 아래에서 선택해 주세요.' }}
         </p>
       </div>
 
-      <!-- 시스템 선택 카드 뷰 -->
+      <!-- 시스템 선택 카드 뷰 (관리자 설정 순서 연동) -->
       <div :class="['grid gap-6 sm:gap-7 w-full max-w-7xl', portalGridClass]">
+        <template v-for="mod in sortedSuiteModules" :key="mod.id">
         
         <!-- 카드 1: 학교장 추천자 선발 시스템 (교사는 미노출) -->
         <div
-          v-if="!auth.isTeacher"
+          v-if="mod.id === 'principal' && isModuleVisible('principal')"
           @click="enterPrincipalSystem"
           :class="[
             'group relative bg-white rounded-3xl p-6 sm:p-7 border shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden',
@@ -157,7 +179,7 @@
 
         <!-- 카드 2: 농어촌 전형 추천자 관리 시스템 (교사는 미노출) -->
         <div
-          v-if="isRuralSystemEnabled && !auth.isTeacher"
+          v-else-if="mod.id === 'rural' && isModuleVisible('rural')"
           @click="enterRuralSystem"
           :class="[
             'group relative bg-white rounded-3xl p-6 sm:p-7 border shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer',
@@ -231,7 +253,7 @@
 
         <!-- 카드 3: 수능 미응시 및 수시 미접수 등록 시스템 (재학생/관리자만 표시, 교사/졸업생 미노출) -->
         <div
-          v-if="showExamIntentCard && !auth.isTeacher"
+          v-else-if="mod.id === 'exam_intent' && isModuleVisible('exam_intent')"
           @click="enterExamIntentSystem"
           class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-violet-500 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
         >
@@ -273,7 +295,7 @@
 
         <!-- 카드 4: 전문대학 학교장 추천 시스템 (교사는 미노출) -->
         <div
-          v-if="isJuniorCollegeSystemEnabled && !auth.isTeacher"
+          v-else-if="mod.id === 'junior_college' && isModuleVisible('junior_college')"
           @click="enterJuniorCollegeSystem"
           class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-500 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
         >
@@ -313,51 +335,9 @@
           </div>
         </div>
 
-        <!-- 카드 5: 설정 (관리자 전용) -->
-        <div
-          v-if="auth.isAdmin"
-          @click="enterSystemSettings"
-          class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-slate-800 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
-        >
-          <div class="absolute -top-20 -right-20 w-40 h-40 bg-slate-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
-
-          <div>
-            <div class="flex items-center justify-between gap-3 mb-6">
-              <div class="w-13 h-13 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 group-hover:bg-slate-900 group-hover:text-white transition-all duration-300 shadow-xs border border-slate-200">
-                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </div>
-              <span class="-mr-6 sm:-mr-7 pl-3.5 pr-5 sm:pr-6 py-1.5 rounded-l-full rounded-r-none text-xs font-bold shadow-xs whitespace-nowrap shrink-0 bg-slate-100 text-slate-800 border-y border-l border-r-0 border-slate-200">
-                관리자 전용
-              </span>
-            </div>
-
-            <div class="inline-block px-2.5 py-1 rounded-md text-xs font-extrabold bg-slate-100 text-slate-800 mb-3">
-              통합 관리
-            </div>
-
-            <h3 class="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-slate-800 transition-colors mb-3">
-              설정
-            </h3>
-            
-            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              학생 가입 승인, 재학생/졸업생 명단 및 학생 관리, 학교 기본 정보 및 가입코드 등 시스템 환경 설정을 통합 관리합니다.
-            </p>
-          </div>
-
-          <div class="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between text-sm font-bold text-slate-700">
-            <span>설정 바로가기</span>
-            <svg class="w-5 h-5 group-hover:translate-x-1.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </div>
-        </div>
-
         <!-- 카드 6: 선택교과 출석관리 시스템 (교사, 관리자 전용) -->
         <div
-          v-if="auth.isAdmin || auth.isTeacher"
+          v-else-if="mod.id === 'rollbook' && isModuleVisible('rollbook')"
           @click="enterRollbookSystem"
           class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-teal-500 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
         >
@@ -396,28 +376,207 @@
             </svg>
           </div>
         </div>
+
+        <!-- 카드 7: 수시 지원 통계 분석 (교사, 관리자 전용 / 학생 미노출) -->
+        <div
+          v-else-if="mod.id === 'stat' && isModuleVisible('stat')"
+          @click="enterStatSystem"
+          class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-500 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+        >
+          <div class="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
+
+          <div>
+            <div class="flex items-center justify-between gap-3 mb-6">
+              <div class="w-13 h-13 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-xs border border-indigo-100">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+              </div>
+              <span class="-mr-6 sm:-mr-7 pl-3.5 pr-5 sm:pr-6 py-1.5 rounded-l-full rounded-r-none text-xs font-bold shadow-xs whitespace-nowrap shrink-0 bg-indigo-100 text-indigo-800 border-y border-l border-r-0 border-indigo-200">
+                대교협 원자료 분석
+              </span>
+            </div>
+
+            <div class="inline-block px-2.5 py-1 rounded-md text-xs font-extrabold bg-indigo-100 text-indigo-700 mb-3">
+              진학 통계 대시보드
+            </div>
+
+            <h3 class="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors mb-3">
+              대입 통계 시스템
+            </h3>
+            
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              대교협 원자료 기반 수시·정시 지원 현황, 대학별·성적대별 출원 경향, 면접·대학별고사 일정 및 학생별 지원 카드를 다각도로 분석합니다.
+            </p>
+          </div>
+
+          <div class="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between text-sm font-bold text-indigo-600">
+            <span v-if="isCheckingStat" class="inline-flex items-center gap-2 text-indigo-500 font-medium">
+              <svg class="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              보안 인증 확인 중...
+            </span>
+            <span v-else>통계 대시보드 바로가기</span>
+            <svg v-if="!isCheckingStat" class="w-5 h-5 group-hover:translate-x-1.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </div>
+        </div>
+
+        </template>
       </div>
     </main>
 
+    <!-- 🔐 대입 통계 시스템 보안 암호 입력 모달 -->
+    <div
+      v-if="showStatPasswordModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+      @click.self="showStatPasswordModal = false"
+    >
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900 m-0">대입 통계 시스템 보안 인증</h3>
+            <p class="text-xs text-slate-500 m-0 mt-0.5">시스템 관리자 로그인 암호를 입력하세요</p>
+          </div>
+        </div>
+
+        <div class="bg-indigo-50/60 border border-indigo-100/80 rounded-2xl p-3.5 text-xs text-slate-600 leading-relaxed">
+          <p class="m-0 font-medium text-slate-700">
+            🛡️ 본 통계 시스템의 원본 성적·입결 자료는 <strong>암호화되어 안전하게 보호받고 있습니다.</strong>
+          </p>
+          <p class="m-0 mt-1 text-slate-500 text-[11px]">
+            안전한 복호화 및 열람을 위해 <strong>시스템 관리자 로그인 암호</strong>를 입력해 주세요.
+          </p>
+        </div>
+
+        <form @submit.prevent="submitStatPassword" class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1.5">
+            <label for="stat-pw-input" class="text-xs font-bold text-slate-700">관리자 암호</label>
+            <input
+              id="stat-pw-input"
+              ref="statPwInputRef"
+              v-model="statInputPassword"
+              type="password"
+              placeholder="시스템 관리자 로그인 암호를 입력하세요"
+              class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-mono"
+              :disabled="isVerifyingPassword"
+              autofocus
+            />
+          </div>
+
+          <div v-if="isVerifyingPassword" class="p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-xs font-bold text-indigo-700 flex items-center gap-2.5">
+            <svg class="animate-spin w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>보안 인증 및 복호화 키 확인 중... 잠시만 기다려 주세요.</span>
+          </div>
+
+          <p v-else-if="statPasswordError" class="text-xs font-bold text-rose-600 m-0 flex items-start gap-1.5 leading-relaxed bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+            <span class="shrink-0">⚠️</span>
+            <span>{{ statPasswordError }}</span>
+          </p>
+
+          <div class="flex items-center justify-end gap-2.5 mt-2">
+            <button
+              type="button"
+              @click="showStatPasswordModal = false"
+              :disabled="isVerifyingPassword"
+              class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              :disabled="isVerifyingPassword || !statInputPassword.trim()"
+              class="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+            >
+              <svg v-if="isVerifyingPassword" class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span>{{ isVerifyingPassword ? '인증 및 복호화 검증 중...' : '인증 및 입장' }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- 하단 푸터 -->
     <footer class="py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
-      <p>© {{ new Date().getFullYear() }} {{ schoolName }} 대입 추천 관리 포털</p>
+      <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+        <p class="m-0">© {{ new Date().getFullYear() }} {{ schoolName }} {{ displaySystemName }}</p>
+        <span class="hidden sm:inline text-slate-300">•</span>
+        <div class="relative group inline-flex items-center">
+          <span class="text-slate-400 mr-1">License:</span>
+          <a
+            href="https://polyformproject.org/licenses/noncommercial/1.0.0/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-slate-600 hover:text-blue-600 font-semibold underline underline-offset-2 decoration-slate-300 hover:decoration-blue-400 transition-colors cursor-pointer"
+          >
+            PolyForm Noncommercial 1.0.0
+          </a>
+
+          <!-- 호버 시 상세 툴팁 -->
+          <div
+            class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 sm:w-80 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 text-left leading-relaxed border border-slate-700 font-normal"
+          >
+            <p class="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+              <span>⚖️</span>
+              <span>라이선스 안내</span>
+            </p>
+            <p class="m-0 text-slate-200 text-xs leading-normal">
+              본 프로그램은 <strong>PolyForm Noncommercial 1.0.0</strong> 라이선스에 따라 학교·교육청 등 <strong>비상업적 목적에 한해</strong> 무료로 사용할 수 있습니다. 학원·유료 입시 컨설팅 등 영리 목적의 사교육 기관에서의 사용은 엄격히 금지됩니다.
+            </p>
+            <!-- 말풍선 꼬리 -->
+            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+          </div>
+        </div>
+      </div>
     </footer>
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { schoolName, fetchSchoolName } from '../utils/schoolConfig'
 import { checkRuralSystemOpenStatus, getRuralEligibilityList } from '../api/ruralApi'
 import { checkExamIntentSystemEnabled } from '../api/examIntentApi'
 import { checkJuniorCollegeSystemEnabled } from '../api/juniorCollegeApi'
+import { 
+  isKcueStatSystemEnabled, 
+  getKcueSheetId, 
+  getStatSessionPassword, 
+  setStatSessionPassword, 
+  verifyStatSheetPassword,
+  preloadStatCipher
+} from '../api/statApi'
 import { supabase } from '../utils/supabaseClient'
 import { fetchRoundSchedulesMap, computeRoundDisplayStatus, parseKstDate } from '../utils/roundSchedule'
 import { dialog } from '../components/common/dialog'
+import {
+  fetchLoginSystemName,
+  loginSystemName,
+  DEFAULT_SYSTEM_NAME,
+  fetchSuiteModules,
+  getModuleStatus,
+  DEFAULT_SUITE_MODULES
+} from '../api/suiteModulesApi.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -434,6 +593,36 @@ const isRuralSystemOpen = ref(true)
 const isRuralSystemEnabled = ref(false)
 const isExamIntentSystemEnabled = ref(localStorage.getItem('pcm_enable_exam_intent_system') !== 'false')
 const isJuniorCollegeSystemEnabled = ref(localStorage.getItem('pcm_enable_junior_college_system') !== 'false')
+const isStatSystemEnabled = ref(false)
+const isPrincipalSystemEnabled = ref(true)
+const isRollbookSystemEnabled = ref(true)
+const suiteModules = ref(DEFAULT_SUITE_MODULES.map(m => ({ ...m })))
+
+const displaySystemName = computed(() => loginSystemName.value || DEFAULT_SYSTEM_NAME || '3학년 진학·학사 통합 포털')
+
+function checkModuleScheduleAccess(moduleId) {
+  if (auth.isAdmin) return true
+  const mod = suiteModules.value.find(m => m.id === moduleId)
+  if (!mod || mod.alwaysOpen) return true
+  const status = getModuleStatus(mod)
+  if (status.code === 'BEFORE') {
+    dialog.alert({
+      title: '오픈 예정 안내',
+      message: `[${mod.name}]은(는) 아직 오픈 전입니다.\n\n운영 기간: ${mod.startAt ? mod.startAt.replace('T', ' ') : ''} ~ ${mod.endAt ? mod.endAt.replace('T', ' ') : ''}`,
+      level: 'warn'
+    })
+    return false
+  }
+  if (status.code === 'ENDED') {
+    dialog.alert({
+      title: '일정 마감 안내',
+      message: `[${mod.name}]의 운영 일정이 마감되었습니다.\n\n마감 일시: ${mod.endAt ? mod.endAt.replace('T', ' ') : ''}`,
+      level: 'warn'
+    })
+    return false
+  }
+  return true
+}
 const activeRuralTerm = ref('수시')
 const ruralClosedReason = ref('')
 const ruralPeriodState = ref('open')
@@ -451,7 +640,7 @@ const userName = computed(() => {
 
 const roleLabel = computed(() => {
   if (auth.isAdmin) return '시스템 관리자'
-  if (auth.isTeacher) return '담임 교사'
+  if (auth.isTeacher) return '교과 교사'
   if (auth.isStudent) return auth.isEnrolled ? '재학생' : '졸업생'
   return ''
 })
@@ -483,16 +672,62 @@ const showExamIntentCard = computed(() => {
   return false
 })
 
-// 그리드 레이아웃 클래스 (카드 수에 따라 동적 조정)
-const portalGridClass = computed(() => {
-  if (auth.isTeacher) {
-    return 'grid-cols-1 max-w-xl'
+// 관리자 설정에서 지정된 순서대로 정렬된 모듈 목록
+const sortedSuiteModules = computed(() => {
+  return [...suiteModules.value].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+})
+
+// 현재 접속 사용자의 그룹 식별 ('admin' | 'teacher' | 'student' | 'graduate')
+const currentUserGroup = computed(() => {
+  if (auth.isAdmin) return 'admin'
+  if (auth.isTeacher) return 'teacher'
+  if (auth.isStudent) {
+    return auth.isEnrolled ? 'student' : 'graduate'
   }
-  let cardCount = 1
-  if (isRuralSystemEnabled.value) cardCount++
-  if (showExamIntentCard.value) cardCount++
-  if (isJuniorCollegeSystemEnabled.value) cardCount++
-  if (auth.isAdmin) cardCount += 2 // Settings + Rollbook
+  return 'student'
+})
+
+// 각 대문 카드가 현재 사용자 그룹에게 노출되는지 여부 판별
+function isModuleVisible(moduleId) {
+  const mod = suiteModules.value.find(m => m.id === moduleId)
+  // 관리자 설정에서 숨김(isEnabled === false) 처리된 모듈은 관리자를 포함한 모든 사용자에게 미노출
+  if (!mod || mod.isEnabled === false || mod.isEnabled === 'false') {
+    return false
+  }
+
+  // 대상 그룹 권한 점검 (활성화된 모듈에 한해 현재 사용자 그룹에 노출 허용 여부 점검)
+  if (Array.isArray(mod.targetRoles) && mod.targetRoles.length > 0) {
+    if (!mod.targetRoles.includes(currentUserGroup.value)) {
+      return false
+    }
+  } else {
+    // 레거시 권한 규칙 fallback
+    if (moduleId === 'principal' && auth.isTeacher) return false
+    if (moduleId === 'rural' && auth.isTeacher) return false
+    if (moduleId === 'exam_intent' && auth.isStudent && !auth.isEnrolled) return false
+    if (moduleId === 'junior_college' && auth.isTeacher) return false
+    if (moduleId === 'rollbook' && !auth.isAdmin && !auth.isTeacher) return false
+    if (moduleId === 'stat' && !auth.isAdmin && !auth.isTeacher) return false
+  }
+
+  // 레거시 개별 비활성화 상태 추가 점검
+  if (moduleId === 'rural' && !isRuralSystemEnabled.value) return false
+  if (moduleId === 'exam_intent' && !isExamIntentSystemEnabled.value) return false
+  if (moduleId === 'junior_college' && !isJuniorCollegeSystemEnabled.value) return false
+  if (moduleId === 'stat' && !isStatSystemEnabled.value) return false
+
+  return true
+}
+
+// 그리드 레이아웃 클래스 (실제 노출되는 카드 수에 따라 동적 그리드 조정)
+const portalGridClass = computed(() => {
+  let cardCount = 0
+  if (isModuleVisible('principal')) cardCount++
+  if (isModuleVisible('rural')) cardCount++
+  if (isModuleVisible('exam_intent')) cardCount++
+  if (isModuleVisible('junior_college')) cardCount++
+  if (isModuleVisible('rollbook')) cardCount++
+  if (isModuleVisible('stat')) cardCount++
 
   if (cardCount >= 6) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-7xl'
   if (cardCount === 5) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 max-w-7xl'
@@ -502,11 +737,114 @@ const portalGridClass = computed(() => {
   return 'grid-cols-1 max-w-xl'
 })
 
+// 대입 통계 시스템 보안 암호 상태
+const showStatPasswordModal = ref(false)
+const statInputPassword = ref('')
+const isVerifyingPassword = ref(false)
+const statPasswordError = ref('')
+const statPwInputRef = ref(null)
+const isCheckingStat = ref(false)
+
+async function enterStatSystem() {
+  if (isCheckingStat.value) return
+  if (!checkModuleScheduleAccess("stat")) return
+  if (!isStatSystemEnabled.value) {
+    await dialog.alert({
+      title: '자료 미등록 안내',
+      message: '대교협 수시 지원 원자료 구글 시트 ID가 아직 등록되지 않았습니다. 관리자 시스템 설정에서 시트 ID를 먼저 입력해 주세요.',
+      level: 'warn'
+    })
+    return
+  }
+
+  const existingPw = getStatSessionPassword()
+
+  // 1. 세션에 암호가 아예 없는 경우: 모달 오픈하여 사용자 입력 대기
+  if (!existingPw) {
+    statPasswordError.value = ''
+    statInputPassword.value = ''
+    isVerifyingPassword.value = false
+    showStatPasswordModal.value = true
+    nextTick(() => {
+      statPwInputRef.value?.focus()
+    })
+    return
+  }
+
+  // 2. 세션 암호가 있는 경우:
+  // ★ 창을 미리 띄우지 않고 내부적으로 먼저 비교!
+  // 암호가 일치하면 모달을 아예 띄우지 않고 즉시 대시보드(/stat)로 입장.
+  // 암호가 불일치할 때만 모달을 띄워 올바른 암호 입력을 요구.
+  isCheckingStat.value = true
+  statPasswordError.value = ''
+
+  try {
+    const sheetId = await getKcueSheetId()
+    const verifyRes = await verifyStatSheetPassword(sheetId, existingPw)
+    if (verifyRes.success) {
+      // ⭕ 일치: 모달을 전혀 열지 않고 즉시 대시보드 입장!
+      router.push('/stat')
+      return
+    }
+    // ❌ 불일치: 모달을 띄우고 사유 안내
+    statPasswordError.value = '시스템 로그인 암호와 구글 시트 복호화 암호가 일치하지 않습니다. 구글 시트 암호화에 사용한 암호를 입력해 주세요.'
+    statInputPassword.value = ''
+    isVerifyingPassword.value = false
+    showStatPasswordModal.value = true
+    nextTick(() => {
+      statPwInputRef.value?.focus()
+    })
+  } catch (e) {
+    statPasswordError.value = '인증 중 오류가 발생했습니다: ' + (e.message || '')
+    statInputPassword.value = ''
+    isVerifyingPassword.value = false
+    showStatPasswordModal.value = true
+    nextTick(() => {
+      statPwInputRef.value?.focus()
+    })
+  } finally {
+    isCheckingStat.value = false
+  }
+}
+
+async function submitStatPassword() {
+  const pw = statInputPassword.value.trim()
+  if (!pw) {
+    statPasswordError.value = '암호를 입력해 주세요.'
+    return
+  }
+
+  isVerifyingPassword.value = true
+  statPasswordError.value = ''
+
+  try {
+    const sheetId = await getKcueSheetId()
+    const verifyRes = await verifyStatSheetPassword(sheetId, pw)
+
+    if (!verifyRes.success) {
+      statPasswordError.value = verifyRes.message || '암호가 올바르지 않습니다. 다시 확인해 주세요.'
+      isVerifyingPassword.value = false
+      return
+    }
+
+    // ⭕ 인증 성공: 브라우저 세션에 저장하고 시스템 대문 통과
+    setStatSessionPassword(pw)
+    showStatPasswordModal.value = false
+    router.push('/stat')
+  } catch (err) {
+    statPasswordError.value = '인증 중 오류가 발생했습니다: ' + (err.message || '')
+  } finally {
+    isVerifyingPassword.value = false
+  }
+}
+
 function enterRollbookSystem() {
+  if (!checkModuleScheduleAccess("rollbook")) return
   router.push('/rollbook')
 }
 
 async function enterPrincipalSystem() {
+  if (!checkModuleScheduleAccess("principal")) return
   if (isStudentPrincipalLocked.value) {
     await dialog.alert({
       title: '선발일정 종료 안내',
@@ -526,6 +864,7 @@ function enterSystemSettings() {
 }
 
 async function enterJuniorCollegeSystem() {
+  if (!checkModuleScheduleAccess("junior_college")) return
   if (isPortalLoading.value) return
   if (!isJuniorCollegeSystemEnabled.value) {
     await dialog.alert({ title: '시스템 이용 제한', message: '전문대학 학교장 추천 시스템이 현재 비활성화되어 있습니다.' })
@@ -535,6 +874,7 @@ async function enterJuniorCollegeSystem() {
 }
 
 async function enterExamIntentSystem() {
+  if (!checkModuleScheduleAccess("exam_intent")) return
   if (isPortalLoading.value) return
   if (!isExamIntentSystemEnabled.value) {
     await dialog.alert({ title: '시스템 이용 제한', message: '수능응시 · 수시/정시 원서접수계획 등록 시스템이 현재 비활성화되어 있습니다.' })
@@ -545,6 +885,7 @@ async function enterExamIntentSystem() {
 }
 
 async function enterRuralSystem() {
+  if (!checkModuleScheduleAccess("rural")) return
   if (isPortalLoading.value) return
   if (!isRuralSystemEnabled.value) {
     await dialog.alert({ title: '시스템 이용 제한', message: '농어촌 전형 추천자 관리 시스템이 현재 비활성화되어 있습니다.' })
@@ -665,20 +1006,61 @@ async function loadPrincipalStatus() {
 }
 
 onMounted(async () => {
+  await fetchLoginSystemName()
+  // 대입 통계 구글 시트 암호문 샘플 백그라운드 초고속 사전 로드 (포털 진입 즉시 병렬 시작)
+  getKcueSheetId().then(sheetId => {
+    if (sheetId) preloadStatCipher(sheetId)
+  }).catch(() => {})
+  try {
+    const mods = await fetchSuiteModules()
+    if (mods && mods.length > 0) {
+      suiteModules.value = mods
+      const mPrincipal = mods.find(m => m.id === 'principal')
+      if (mPrincipal) isPrincipalSystemEnabled.value = mPrincipal.isEnabled
+      const mRural = mods.find(m => m.id === 'rural')
+      if (mRural) isRuralSystemEnabled.value = mRural.isEnabled
+      const mExam = mods.find(m => m.id === 'exam_intent')
+      if (mExam) isExamIntentSystemEnabled.value = mExam.isEnabled
+      const mJc = mods.find(m => m.id === 'junior_college')
+      if (mJc) isJuniorCollegeSystemEnabled.value = mJc.isEnabled
+      const mRollbook = mods.find(m => m.id === 'rollbook')
+      if (mRollbook) isRollbookSystemEnabled.value = mRollbook.isEnabled
+      const mStat = mods.find(m => m.id === 'stat')
+      if (mStat) isStatSystemEnabled.value = mStat.isEnabled
+    }
+  } catch (e) {}
   fetchSchoolName()
   isPortalLoading.value = true
   try {
     await Promise.all([
       loadPrincipalStatus(),
       (async () => {
-        isJuniorCollegeSystemEnabled.value = await checkJuniorCollegeSystemEnabled()
+        const jcEnabled = await checkJuniorCollegeSystemEnabled()
+        const mJc = suiteModules.value.find(m => m.id === 'junior_college')
+        isJuniorCollegeSystemEnabled.value = mJc ? mJc.isEnabled : jcEnabled
       })(),
       (async () => {
-        isExamIntentSystemEnabled.value = await checkExamIntentSystemEnabled()
+        const examEnabled = await checkExamIntentSystemEnabled()
+        const mExam = suiteModules.value.find(m => m.id === 'exam_intent')
+        isExamIntentSystemEnabled.value = mExam ? mExam.isEnabled : examEnabled
+      })(),
+      (async () => {
+        const statEnabled = await isKcueStatSystemEnabled()
+        const mStat = suiteModules.value.find(m => m.id === 'stat')
+        isStatSystemEnabled.value = mStat ? mStat.isEnabled : statEnabled
+        if (isStatSystemEnabled.value) {
+          try {
+            const sheetId = await getKcueSheetId()
+            if (sheetId) {
+              preloadStatCipher(sheetId)
+            }
+          } catch (e) {}
+        }
       })(),
       (async () => {
         const status = await checkRuralSystemOpenStatus()
-        isRuralSystemEnabled.value = status.isEnabled === true
+        const mRural = suiteModules.value.find(m => m.id === 'rural')
+        isRuralSystemEnabled.value = mRural ? mRural.isEnabled : (status.isEnabled === true)
         isRuralSystemOpen.value = status.isOpen
         activeRuralTerm.value = status.activeTerm
         ruralClosedReason.value = status.reason

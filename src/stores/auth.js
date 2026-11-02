@@ -33,12 +33,17 @@ export const useAuthStore = defineStore('auth', () => {
   const gradYear = ref(localStorage.getItem('pcm_grad_year') != null ? Number(localStorage.getItem('pcm_grad_year')) : null)
   const hasDisciplinary = ref(localStorage.getItem('pcm_has_disciplinary') === 'true')
 
+  // 게스트(학교 관리자 Secret 접속) 상태
+  const guestModule = ref(localStorage.getItem('pcm_guest_module') || null)
+
   // null = 아직 체크 안함 / false = 미설정(Supabase 없음) / true = 설정 완료
   const initialized = ref(null)
 
   const isAdmin = computed(() => role.value === 'admin')
   const isTeacher = computed(() => role.value === 'teacher')
   const isStudent = computed(() => role.value === 'student')
+  const isGuest = computed(() => role.value === 'guest')
+  const isAuthenticated = computed(() => isAdmin.value || isTeacher.value || isStudent.value || isGuest.value || !!userId.value || !!role.value)
 
   // Supabase 세션 상태 동기화 및 런타임 체크
   async function checkStatus() {
@@ -65,13 +70,31 @@ export const useAuthStore = defineStore('auth', () => {
           } catch (e) {
             console.warn('Student profile sync fallback on checkStatus:', e)
           }
+        } else if (role.value === 'guest') {
+          // 학교 관리자 Secret 접속(게스트) 세션 검증
+          let validGuest = false
+          try {
+            const ticketStr = sessionStorage.getItem('pcm_guest_ticket')
+            if (ticketStr) {
+              const ticket = JSON.parse(ticketStr)
+              if (ticket && ticket.moduleId && ticket.expiresAt && Date.now() < ticket.expiresAt) {
+                guestModule.value = ticket.moduleId
+                teacherName.value = '학교 관리자 (게스트)'
+                validGuest = true
+              }
+            }
+          } catch (e) {}
+
+          if (!validGuest) {
+            clearAuthStates()
+          }
         } else {
           clearAuthStates()
         }
       }
     } catch (e) {
       console.error('Session sync error:', e)
-      if (role.value !== 'student') {
+      if (role.value !== 'student' && role.value !== 'guest') {
         clearAuthStates()
       }
     }
@@ -237,8 +260,23 @@ export const useAuthStore = defineStore('auth', () => {
     if (userId.value) localStorage.setItem('pcm_user_id', userId.value)
     else localStorage.removeItem('pcm_user_id')
 
-    if (role.value) localStorage.setItem('pcm_role', role.value)
-    else localStorage.removeItem('pcm_role')
+    if (role.value === 'guest') {
+      let hasValidTicket = false
+      try {
+        const ticketStr = sessionStorage.getItem('pcm_guest_ticket')
+        if (ticketStr) {
+          const t = JSON.parse(ticketStr)
+          if (t && t.expiresAt && Date.now() < t.expiresAt) hasValidTicket = true
+        }
+      } catch (e) {}
+
+      if (hasValidTicket) localStorage.setItem('pcm_role', 'guest')
+      else localStorage.removeItem('pcm_role')
+    } else if (role.value) {
+      localStorage.setItem('pcm_role', role.value)
+    } else {
+      localStorage.removeItem('pcm_role')
+    }
 
     if (status.value) localStorage.setItem('pcm_status', status.value)
     else localStorage.removeItem('pcm_status')
@@ -276,6 +314,10 @@ export const useAuthStore = defineStore('auth', () => {
     else localStorage.removeItem('pcm_grad_year')
 
     localStorage.setItem('pcm_has_disciplinary', hasDisciplinary.value ? 'true' : 'false')
+
+    if (guestModule.value) localStorage.setItem('pcm_guest_module', guestModule.value)
+    else localStorage.removeItem('pcm_guest_module')
+
     if (token.value) {
       localStorage.setItem('pcm_last_activity', String(Date.now()))
     }
@@ -286,6 +328,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = null
     role.value = null
     status.value = null
+    guestModule.value = null
     grade.value = null
     classNo.value = null
     teacherName.value = null
@@ -298,7 +341,35 @@ export const useAuthStore = defineStore('auth', () => {
     isEnrolled.value = true
     gradYear.value = null
     hasDisciplinary.value = false
+    localStorage.removeItem('pcm_guest_module')
     localStorage.removeItem('pcm_last_activity')
+    try {
+      sessionStorage.removeItem('pcm_guest_ticket')
+    } catch (e) {}
+    _persist()
+  }
+
+  // 학교 관리자 Secret 접속 (임시 게스트 로그인)
+  function loginAsGuest(moduleId = 'stat', tokenData = null) {
+    clearAuthStates()
+    role.value = 'guest'
+    guestModule.value = moduleId
+    teacherName.value = '학교 관리자 (게스트)'
+    status.value = 'approved'
+    userId.value = `guest_${moduleId}`
+    isEnrolled.value = false
+
+    const expiresAt = tokenData?.expiresAt || (Date.now() + 24 * 60 * 60 * 1000)
+    const token = tokenData?.token || ''
+
+    try {
+      sessionStorage.setItem('pcm_guest_ticket', JSON.stringify({
+        moduleId,
+        token,
+        expiresAt
+      }))
+    } catch (e) {}
+
     _persist()
   }
 
@@ -637,7 +708,8 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     token, userId, user, role, status, grade, classNo, teacherName,
     studentCode, studentName, studentPhone, gpaOverall, phoneLast4, seqNo, isEnrolled, gradYear, hasDisciplinary,
-    initialized, isAdmin, isTeacher, isStudent,
+    initialized, isAdmin, isTeacher, isStudent, isGuest, isAuthenticated,
+    guestModule, loginAsGuest,
     checkStatus, loginAdmin, loginTeacher, loginStudent, signUpStudent, logout
   }
 })

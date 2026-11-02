@@ -145,7 +145,7 @@
           </div>
 
           <!-- 액션 버튼 -->
-          <div class="pt-2 border-t border-slate-200/80 flex flex-col gap-1.5">
+          <div v-if="!auth.isGuest" class="pt-2 border-t border-slate-200/80 flex flex-col gap-1.5">
             <button
               v-if="isRuralSystemEnabled"
               @click="switchToRuralSystem"
@@ -257,11 +257,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 학교장추천전형 최초 접속 안내 모달 -->
+    <PrincipalNoticeModal />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch, provide } from 'vue'
+import PrincipalNoticeModal from '../components/common/PrincipalNoticeModal.vue'
 import { fetchRoundSchedulesMap, computeRoundDisplayStatus } from '../utils/roundSchedule.js'
 import { supabase } from '../utils/supabaseClient'
 import axios from 'axios'

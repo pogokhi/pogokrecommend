@@ -33,6 +33,60 @@
         </form>
       </div>
 
+      <!-- 0-2. 로그인 화면 시스템 명칭 설정 -->
+      <div class="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <h2 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2 m-0">
+            <span class="w-1 h-3 bg-blue-600 rounded-full"></span>
+            로그인 화면 시스템 명칭 설정
+          </h2>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            대문 타이틀 연동
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">
+          처음 로그인 화면 중앙에 표시될 통합 시스템 명칭을 지정합니다. (기존의 길게 나열되던 개별 시스템명 대신 통일된 명칭으로 표시됩니다.)
+        </p>
+
+        <!-- 추천 이름 퀵 버튼들 -->
+        <div class="flex flex-wrap items-center gap-1.5 mb-3">
+          <span class="text-xs font-bold text-slate-500 mr-1">💡 추천 이름:</span>
+          <button
+            v-for="name in recommendedNames"
+            :key="name"
+            type="button"
+            @click="applyRecommendedName(name)"
+            class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+            :class="{ 'bg-blue-600 text-white font-bold border-blue-600 hover:bg-blue-600 hover:text-white': inputLoginSystemName === name }"
+          >
+            {{ name }}
+          </button>
+        </div>
+
+        <form @submit.prevent="handleSaveLoginSystemName" class="flex gap-3 w-full">
+          <input
+            v-model="inputLoginSystemName"
+            type="text"
+            required
+            placeholder="예: 3학년 진학·학사 통합 포털"
+            class="flex-1 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800 dark:text-white font-semibold"
+          />
+          <button
+            type="submit"
+            :disabled="loginSystemNameLoading"
+            class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 border-none rounded-lg px-5 py-2.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+          >
+            {{ loginSystemNameLoading ? '저장 중…' : '시스템 명칭 저장' }}
+          </button>
+        </form>
+
+        <div class="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
+          <span class="font-bold text-blue-600">미리보기:</span>
+          <span class="font-extrabold text-blue-700">[{{ inputSchoolName || '우리고등학교' }}]</span>
+          <span class="font-black text-slate-900 dark:text-white text-sm">{{ inputLoginSystemName || '3학년 진학·학사 통합 포털' }}</span>
+        </div>
+      </div>
+
       <!-- 1. 학급 수 설정 (디폴트 11반) -->
       <div class="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-xl p-6 shadow-sm">
         <h2 class="text-base font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
@@ -353,6 +407,103 @@
               </button>
             </div>
           </div>
+
+          <!-- 3. 대교협 수시 지원 원자료 구글 시트 ID (꼼스탯 통계) -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                3) 대교협 수시 지원 원자료 구글 시트 ID (수시 지원 통계 분석 시스템)
+              </label>
+              <a
+                v-if="realGoogleSheetKcueId"
+                :href="`https://docs.google.com/spreadsheets/d/${realGoogleSheetKcueId}/edit`"
+                target="_blank"
+                class="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold flex items-center gap-1 hover:underline"
+              >
+                <span>🔗 시트 바로 열기</span>
+              </a>
+            </div>
+            <p class="text-[11px] text-slate-500 m-0 leading-relaxed">
+              시트 ID 또는 전체 URL을 입력하면 자동으로 ID만 추출하여 안전하게 저장됩니다. (등록 시 교사/관리자 포털의 통계 메뉴가 활성화됩니다)
+            </p>
+            
+            <!-- 통합 시트 탭 구조 안내 -->
+            <div class="p-2.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-[11px] text-indigo-900 dark:text-indigo-200 space-y-1">
+              <div class="font-bold flex items-center gap-1">
+                <span>📑</span>
+                <span>단일 구글 시트 탭(Tab) 통합 관리 시스템</span>
+              </div>
+              <p class="m-0 text-slate-600 dark:text-slate-300 leading-normal">
+                대입학년도마다 별도의 시트 파일을 만들지 않고 <strong>본 구글 시트 1개</strong> 안에 시트 탭(
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2027수시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2026수시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2025수시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-purple-600 dark:text-purple-300">2027정시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-purple-600 dark:text-purple-300">2026정시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-emerald-600 dark:text-emerald-300">2027통계</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-emerald-600 dark:text-emerald-300">2026통계</code> 등)을 추가하여 모든 학년도와 전형 자료를 하나로 통합 관리합니다.
+              </p>
+            </div>
+
+            <div class="flex gap-2">
+              <input
+                v-model="googleSheetKcueId"
+                type="text"
+                :placeholder="hasGoogleSheetKcueId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력 (예: 1U5Vnx2x8gn...)'"
+                class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-white"
+              />
+              <button
+                @click="saveGoogleSheetKcueId"
+                :disabled="googleSheetKcueLoading"
+                class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 border-none rounded-lg px-4 cursor-pointer transition-colors whitespace-nowrap"
+              >
+                {{ googleSheetKcueLoading ? '저장 중…' : 'ID 저장' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. 2027 대입 일정 구글 스프레드시트 ID (로그인 화면 캘린더 연동) -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                4) 2027 대입 일정 구글 스프레드시트 ID (로그인 화면 캘린더 연동)
+              </label>
+              <a
+                v-if="realAdmissionSheetId"
+                :href="`https://docs.google.com/spreadsheets/d/${realAdmissionSheetId}/edit`"
+                target="_blank"
+                class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-semibold flex items-center gap-1 hover:underline"
+              >
+                <span>🔗 시트 바로 열기</span>
+              </a>
+            </div>
+            <p class="text-[11px] text-slate-500 m-0">
+              주요일정·원서접수마감·4년제일정·전문대일정(A열: 대입학년도 2027 등) 및 학사일정(A열: 학사년도 2026 등) 총 5개 시트 탭이 포함된 구글 시트 ID 또는 전체 URL을 등록합니다.
+            </p>
+            <div class="flex gap-2">
+              <input
+                v-model="admissionSheetIdInput"
+                type="text"
+                :placeholder="hasAdmissionSheetId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력'"
+                class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800 dark:text-white"
+              />
+              <button
+                @click="handleSaveAdmissionSheetId"
+                :disabled="admissionSheetLoading"
+                class="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 border-none rounded-lg px-4 cursor-pointer transition-colors whitespace-nowrap"
+              >
+                {{ admissionSheetLoading ? '저장 중…' : 'ID 저장' }}
+              </button>
+              <button
+                @click="handleRefreshAdmissionData"
+                :disabled="admissionRefreshLoading"
+                class="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-3.5 cursor-pointer transition-colors whitespace-nowrap flex items-center gap-1"
+              >
+                <span>🔄</span>
+                <span>{{ admissionRefreshLoading ? '동기화 중…' : '캘린더 즉시 갱신' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -383,84 +534,326 @@
         </div>
       </div>
 
-      <!-- 4-2. 농어촌 전형 시스템 활성화 -->
-      <div class="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-xl p-6 shadow-sm">
-        <div class="flex items-center justify-between gap-4">
+      <!-- 4-2. 포털 대문 서비스 모듈 관리 (박스 형태 카드 모음) -->
+      <div class="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700">
           <div>
-            <h2 class="text-base font-bold text-slate-800 dark:text-white mb-1 flex items-center gap-2">
-              <span class="w-1 h-3 bg-emerald-600 rounded-full"></span>
-              농어촌 전형 시스템 활성화
+            <h2 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <span class="w-1.5 h-4 bg-indigo-600 rounded-full"></span>
+              포털 대문 서비스 모듈 관리 (ggomsuite 통합 관리)
             </h2>
-            <p class="text-xs text-slate-400">
-              농어촌 전형 및 기회균형 전형 학생 선발을 위한 전용 시스템과 메뉴를 활성화합니다.
+            <p class="text-xs text-slate-400 mt-1">
+              각 기능의 포털 대문(카드) 노출 여부와 서비스별 운영 기간(시작일시~종료일시)을 박스 카드로 한눈에 관리합니다.
             </p>
           </div>
-          <button
-            type="button"
-            @click="toggleEnableRuralSystem"
-            :disabled="ruralSystemLoading"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="enableRuralSystem ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="enableRuralSystem ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              :disabled="saveModulesLoading"
+              @click="handleSaveSuiteModules"
+              class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors cursor-pointer border-none shadow-xs flex items-center gap-1.5"
+            >
+              <span>{{ saveModulesLoading ? '저장 중…' : '💾 대문 설정 및 일정 저장' }}</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- 4-3. 수능응시 · 수시/정시 원서접수계획 등록 시스템 활성화 -->
-      <div class="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-xl p-6 shadow-sm">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-base font-bold text-slate-800 dark:text-white mb-1 flex items-center gap-2">
-              <span class="w-1 h-3 bg-violet-600 rounded-full"></span>
-              수능응시 · 수시/정시 원서접수계획 등록 시스템 활성화
-            </h2>
-            <p class="text-xs text-slate-400">
-              재학생 대상 수능 응시 여부 및 대학 수시·정시 원서접수 계획 파악, 확인서 출력, 수능 접수대장 대조 시스템을 활성화합니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            @click="toggleEnableExamIntentSystem"
-            :disabled="examIntentSystemLoading"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="enableExamIntentSystem ? 'bg-violet-600' : 'bg-slate-300 dark:bg-slate-700'"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="enableExamIntentSystem ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
+        <!-- 드래그앤드롭 안내 -->
+        <div class="mb-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 px-3.5 py-2 rounded-xl border border-slate-200/70 dark:border-slate-800">
+          <span class="flex items-center gap-1.5 font-medium">
+            <GripVertical :size="14" class="text-indigo-500" />
+            <span><strong>순서 변경:</strong> 카드를 마우스로 드래그앤드롭하여 원하는 순서로 재배치할 수 있으며, 대문 화면에 동일한 순서로 즉시 반영됩니다.</span>
+          </span>
+          <span class="text-[11px] text-slate-400 font-semibold shrink-0 ml-2">총 {{ suiteModules.length }}개 모듈</span>
         </div>
-      </div>
 
-      <!-- 4-4. 전문대학 학교장 추천 시스템 활성화 -->
-      <div class="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-xl p-6 shadow-sm">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-base font-bold text-slate-800 dark:text-white mb-1 flex items-center gap-2">
-              <span class="w-1 h-3 bg-indigo-600 rounded-full"></span>
-              전문대학 학교장 추천 시스템 활성화
-            </h2>
-            <p class="text-xs text-slate-400">
-              전문대학 학교장 추천전형 지원을 위한 대학/학과/전형 직접 입력 및 학교장 직인 날인용 추천서 발급 메뉴를 활성화합니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            @click="toggleEnableJuniorCollegeSystem"
-            :disabled="juniorCollegeSystemLoading"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="enableJuniorCollegeSystem ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
+        <!-- 모듈 박스 카드 그리드 (2열 드래그앤드롭) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            v-for="(m, index) in suiteModules"
+            :key="m.id"
+            draggable="true"
+            @dragstart="onModuleDragStart($event, index)"
+            @dragover="onModuleDragOver($event, index)"
+            @dragleave="onModuleDragLeave($event, index)"
+            @drop="onModuleDrop($event, index)"
+            @dragend="onModuleDragEnd"
+            :class="[
+              'rounded-xl border p-4.5 flex flex-col justify-between transition-all duration-200 shadow-2xs select-none cursor-grab active:cursor-grabbing',
+              draggedModuleIndex === index ? 'opacity-35 scale-[0.98] border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-900' : '',
+              dragOverModuleIndex === index && draggedModuleIndex !== index ? 'border-indigo-500 ring-2 ring-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/20' : '',
+              m.isEnabled
+                ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200/60 opacity-60'
+            ]"
           >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="enableJuniorCollegeSystem ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
+            <div>
+              <!-- 상단 헤더: 드래그 핸들 + 순서 배지 + 카테고리 + 아이콘 + 타이틀 + 토글 -->
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2 min-w-0">
+                  <div
+                    class="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-0.5 rounded transition-colors"
+                    title="드래그하여 순서 변경"
+                  >
+                    <GripVertical :size="16" />
+                  </div>
+                  <div
+                    class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0"
+                    :class="getModuleThemeClasses(m).iconBox"
+                  >
+                    <component :is="iconMap[m.id] || Grid" :size="17" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[10px] font-black px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800">
+                        #{{ index + 1 }}
+                      </span>
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" :class="getModuleThemeClasses(m).categoryBadge">
+                        {{ m.category }}
+                      </span>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white m-0 leading-tight mt-0.5 truncate">
+                      {{ m.name }}
+                    </h3>
+                  </div>
+                </div>
+
+                <!-- 대문 노출 토글 스위치 -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="text-[11px] font-bold" :class="m.isEnabled ? 'text-indigo-600' : 'text-slate-400'">
+                    {{ m.isEnabled ? '노출' : '숨김' }}
+                  </span>
+                  <button
+                    type="button"
+                    @click="toggleModuleEnabled(m)"
+                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="m.isEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="m.isEnabled ? 'translate-x-4' : 'translate-x-0'"
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <!-- 서비스 설명 -->
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">
+                {{ m.description }}
+              </p>
+
+              <!-- 대상 사용자 그룹 선택 (5개 그룹: 학생, 졸업생, 학부모, 교사, 관리자) -->
+              <div class="mb-3 p-2.5 rounded-lg bg-slate-50/70 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800">
+                <div class="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>👥 대문 표시 대상 그룹:</span>
+                  <span class="text-[10px] text-slate-400 font-normal">선택된 그룹에만 노출</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <button
+                    v-for="grp in targetGroupOptions"
+                    :key="grp.key"
+                    type="button"
+                    :disabled="grp.disabled"
+                    @click="toggleModuleGroup(m, grp.key)"
+                    :title="grp.disabled ? (grp.tooltip || '준비 중') : ''"
+                    class="text-[11px] px-2 py-0.5 rounded-md font-semibold transition-all border flex items-center gap-1 cursor-pointer"
+                    :class="[
+                      grp.disabled
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200 select-none'
+                        : (m.targetRoles && m.targetRoles.includes(grp.key)
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700')
+                    ]"
+                  >
+                    <span v-if="m.targetRoles && m.targetRoles.includes(grp.key) && !grp.disabled" class="text-indigo-600">✓</span>
+                    <span>{{ grp.label }}</span>
+                    <span v-if="grp.disabled" class="text-[9px] bg-slate-200 text-slate-500 px-1 rounded font-normal">준비중</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 일정 스케줄 설정 박스 -->
+              <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="flex items-center gap-1.5 cursor-pointer select-none text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <input type="checkbox" v-model="m.alwaysOpen" class="rounded text-indigo-600" />
+                    <span>상시 운영 (기간 제한 없음)</span>
+                  </label>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border" :class="getModuleStatusInfo(m).badgeClass">
+                    {{ getModuleStatusInfo(m).label }}
+                  </span>
+                </div>
+
+                <!-- 시작일시 / 종료일시 (상시 운영이 아닐 때만 노출) -->
+                <div v-if="!m.alwaysOpen" class="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-medium text-slate-500 w-12 shrink-0">시작일시:</span>
+                    <input
+                      type="datetime-local"
+                      v-model="m.startAt"
+                      class="flex-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-medium text-slate-500 w-12 shrink-0">종료일시:</span>
+                    <input
+                      type="datetime-local"
+                      v-model="m.endAt"
+                      class="flex-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- 🔑 학교 관리자 Secret 접속경로 (비밀번호 없는 임시 게스트 열람) -->
+              <div 
+                class="mt-3 p-3 rounded-xl border transition-all"
+                :class="m.secretAccessEnabled
+                  ? (isSecretExpired(m) 
+                      ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800 ring-1 ring-rose-300/40 shadow-xs'
+                      : 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 ring-1 ring-amber-300/40 shadow-xs')
+                  : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200/70 dark:border-slate-800'"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span class="text-sm">🔑</span>
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                      학교 관리자 Secret 접속경로
+                    </span>
+                    <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold shrink-0">
+                      ID: {{ MODULE_CODE_MAP[m.id] || m.id }}
+                    </span>
+                    <span
+                      class="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full border shrink-0"
+                      :class="m.secretAccessEnabled
+                        ? (isSecretExpired(m)
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-900/50 dark:text-rose-300'
+                            : 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/50 dark:text-amber-300')
+                        : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-800 dark:text-slate-400'"
+                    >
+                      {{ m.secretAccessEnabled ? (isSecretExpired(m) ? '⚠️ 만료됨' : `🔓 열림 (${getSecretDdayLabel(m)})`) : '🔒 닫힘 (차단)' }}
+                    </span>
+                  </div>
+
+                  <!-- 토글 스위치 -->
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      @click.stop="toggleSecretAccess(m)"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="m.secretAccessEnabled ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      :title="m.secretAccessEnabled ? 'Secret 접속경로 닫기' : 'Secret 접속경로 열기'"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                        :class="m.secretAccessEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 열림 상태일 때: 유효 날짜 지정, 전용 Secret URL 및 복사 버튼 -->
+                <div v-if="m.secretAccessEnabled" class="mt-2.5 pt-2 border-t border-amber-200/80 dark:border-amber-800/50 space-y-2">
+                  <!-- 만료일자 설정 & 빠른 프리셋 버튼 -->
+                  <div class="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-amber-100/60 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 text-xs">
+                    <div class="flex items-center gap-1.5 text-amber-950 dark:text-amber-100 font-semibold">
+                      <span>📅</span>
+                      <span>접속 유효 만료일:</span>
+                      <input
+                        type="date"
+                        :min="todayIsoDate"
+                        :value="m.secretAccessExpireDate || todayIsoDate"
+                        @change="handleSecretExpireDateChange(m, $event.target.value)"
+                        class="px-2 py-0.5 text-xs font-bold font-mono rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xs focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span class="text-[11px] font-normal text-amber-800 dark:text-amber-300">23:59까지</span>
+                    </div>
+
+                    <!-- 퀵 프리셋 버튼 -->
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span class="text-[10px] text-amber-800 dark:text-amber-300 mr-0.5">빠른 지정:</span>
+                      <button
+                        type="button"
+                        @click.stop="setPresetExpireDate(m, 0)"
+                        class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === todayIsoDate }"
+                      >
+                        오늘까지
+                      </button>
+                      <button
+                        type="button"
+                        @click.stop="setPresetExpireDate(m, 1)"
+                        class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(1) }"
+                      >
+                        내일(+1일)
+                      </button>
+                      <button
+                        type="button"
+                        @click.stop="setPresetExpireDate(m, 2)"
+                        class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(2) }"
+                      >
+                        모레(+2일)
+                      </button>
+                      <button
+                        type="button"
+                        @click.stop="setPresetExpireDate(m, 6)"
+                        class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(6) }"
+                      >
+                        7일간
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 만료 경고 배너 (만료된 경우) -->
+                  <div v-if="isSecretExpired(m)" class="p-2 rounded bg-rose-100 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-900 dark:text-rose-200 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5">
+                      <span>⚠️</span>
+                      <strong>설정된 유효 만료일({{ m.secretAccessExpireDate }})이 경과하여 접속이 차단되었습니다.</strong>
+                    </div>
+                    <button
+                      type="button"
+                      @click.stop="setPresetExpireDate(m, 1)"
+                      class="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-600 hover:bg-rose-700 text-white cursor-pointer border-none"
+                    >
+                      내일까지로 연장
+                    </button>
+                  </div>
+
+                  <!-- URL 입력창 & 복사 버튼 -->
+                  <div class="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      readonly
+                      :value="moduleSecretUrls[m.id] || '암호화 링크 생성 중...'"
+                      class="flex-1 text-[11px] font-mono bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 rounded px-2 py-1 text-slate-800 dark:text-slate-200 select-all focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      @click.stop="copySecretUrl(m)"
+                      class="shrink-0 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer border-none shadow-2xs flex items-center gap-1"
+                    >
+                      <span>📋</span>
+                      <span>URL 복사</span>
+                    </button>
+                  </div>
+
+                  <div class="flex items-center justify-between text-[10px] text-amber-900 dark:text-amber-200/90 leading-relaxed">
+                    <span>💡 <strong>{{ m.secretAccessExpireDate || '지정일' }} 23:59까지 유효한 AES 암호화 토큰</strong>이 적용된 링크입니다 (성명 마스킹 <code>**동</code> 영구 보호).</span>
+                    <span v-if="m.secretAccessDate" class="text-amber-700 font-mono font-semibold">발급: {{ m.secretAccessDate }}</span>
+                  </div>
+                </div>
+
+                <div v-else class="mt-1">
+                  <p class="text-[10px] text-slate-400 m-0 leading-relaxed">
+                    현재 게스트 접속이 차단되어 있습니다. 학교 관리자에게 임시 열람을 제공할 때 토글을 켜면 원하는 유효 날짜를 정해 안전한 AES 암호화 링크를 생성할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -522,9 +915,39 @@ import { supabase } from '../../utils/supabaseClient'
 import { fetchSchoolName, setSchoolNameConfig } from '../../utils/schoolConfig'
 import { getDisclosureCount, setDisclosureCount, syncRegionalToUniversities, syncPrincipalUnivsFromGoogleSheet } from '../../api/admin.js'
 import { syncRuralTracksFromGoogleSheet } from '../../api/ruralApi.js'
+import { getKcueSheetId, extractSheetId, saveKcueSheetId, KCUE_SHEET_KEY } from '../../api/statApi.js'
+import { getAdmissionSheetId, saveAdmissionSheetId, fetchAdmissionCalendarData } from '../../services/admissionCalendarService.js'
 import { dialog } from '../common/dialog.js'
 import { useAuthStore } from '../../stores/auth'
 import { clearAllApplicationStorage, clearAllRuralStorage } from '../../utils/storageUtils'
+import {
+  fetchLoginSystemName,
+  saveLoginSystemName,
+  fetchSuiteModules,
+  saveSuiteModules,
+  getModuleStatus,
+  getModuleSecretUrl,
+  getOrGenerateModuleSecretUrl,
+  generateSecretAccessToken,
+  getTodayDateString,
+  getTodayIsoDate,
+  getNextDayIsoDate,
+  parseExpireDateToTimestamp,
+  getIsoDateFromTimestamp,
+  MODULE_CODE_MAP,
+  RECOMMENDED_SYSTEM_NAMES,
+  SUITE_TARGET_GROUPS
+} from '../../api/suiteModulesApi.js'
+import {
+  GraduationCap,
+  ShieldCheck,
+  ClipboardList,
+  School,
+  BookOpen,
+  BarChart3,
+  GripVertical,
+  Grid
+} from 'lucide-vue-next'
 
 const auth = useAuthStore()
 
@@ -572,6 +995,16 @@ const hasOpenAIKey = ref(false)
 
 const hasGoogleSheetPrincipalId = ref(false)
 const hasGoogleSheetRuralId = ref(false)
+const googleSheetKcueId = ref('')
+const realGoogleSheetKcueId = ref('')
+const googleSheetKcueLoading = ref(false)
+const hasGoogleSheetKcueId = ref(false)
+
+const admissionSheetIdInput = ref('')
+const realAdmissionSheetId = ref('')
+const hasAdmissionSheetId = ref(false)
+const admissionSheetLoading = ref(false)
+const admissionRefreshLoading = ref(false)
 
 const allowAreaEdit = ref(false)
 const areaEditLoading = ref(false)
@@ -584,6 +1017,303 @@ const examIntentSystemLoading = ref(false)
 
 const enableJuniorCollegeSystem = ref(localStorage.getItem('pcm_enable_junior_college_system') !== 'false')
 const juniorCollegeSystemLoading = ref(false)
+
+// ── ggomsuite 로그인 명칭 및 모듈 관리 상태 ───────────────────────────
+const inputLoginSystemName = ref('')
+const loginSystemNameLoading = ref(false)
+const recommendedNames = RECOMMENDED_SYSTEM_NAMES
+const targetGroupOptions = SUITE_TARGET_GROUPS
+
+async function toggleModuleEnabled(m) {
+  m.isEnabled = !m.isEnabled
+  try {
+    localStorage.setItem('suite_modules_cache', JSON.stringify(suiteModules.value))
+  } catch {}
+
+  if (m.id === 'rural') enableRuralSystem.value = m.isEnabled
+  if (m.id === 'exam_intent') enableExamIntentSystem.value = m.isEnabled
+  if (m.id === 'junior_college') enableJuniorCollegeSystem.value = m.isEnabled
+
+  try {
+    await saveSuiteModules(suiteModules.value)
+  } catch (err) {
+    console.error('Failed to auto-save module enabled state:', err)
+  }
+}
+
+async function toggleModuleGroup(m, groupKey) {
+  if (!m.targetRoles) m.targetRoles = []
+  const idx = m.targetRoles.indexOf(groupKey)
+  if (idx > -1) {
+    m.targetRoles.splice(idx, 1)
+  } else {
+    m.targetRoles.push(groupKey)
+  }
+  try {
+    localStorage.setItem('suite_modules_cache', JSON.stringify(suiteModules.value))
+    await saveSuiteModules(suiteModules.value)
+  } catch (err) {
+    console.error('Failed to auto-save group toggle:', err)
+  }
+}
+
+const moduleSecretUrls = ref({})
+const todayIsoDate = computed(() => getTodayIsoDate())
+
+function isSecretExpired(m) {
+  if (!m || !m.secretAccessEnabled) return false
+  if (m.secretAccessExpiresAt) {
+    return Date.now() > Number(m.secretAccessExpiresAt)
+  }
+  if (m.secretAccessExpireDate) {
+    const ts = parseExpireDateToTimestamp(m.secretAccessExpireDate)
+    return Date.now() > ts
+  }
+  return false
+}
+
+function getSecretDdayLabel(m) {
+  if (isSecretExpired(m)) return '만료됨'
+  const expDate = m?.secretAccessExpireDate || todayIsoDate.value
+  const today = todayIsoDate.value
+  if (expDate === today) return 'D-Day (오늘까지)'
+
+  try {
+    const t1 = new Date(today + 'T00:00:00+09:00').getTime()
+    const t2 = new Date(expDate + 'T00:00:00+09:00').getTime()
+    const diffDays = Math.round((t2 - t1) / (24 * 60 * 60 * 1000))
+    if (diffDays === 1) return 'D-1 (내일까지)'
+    if (diffDays > 1) return `D-${diffDays} (~${expDate})`
+  } catch (e) {}
+  return '만료됨'
+}
+
+async function refreshModuleSecretUrls() {
+  for (const m of suiteModules.value) {
+    if (m.secretAccessEnabled) {
+      moduleSecretUrls.value[m.id] = await getOrGenerateModuleSecretUrl(m)
+    }
+  }
+}
+
+async function handleSecretExpireDateChange(m, newDateStr) {
+  if (!newDateStr) return
+  const clean = String(newDateStr).trim()
+  m.secretAccessExpireDate = clean
+  const expiresAt = parseExpireDateToTimestamp(clean)
+  m.secretAccessExpiresAt = expiresAt
+
+  // 새 토큰 및 URL 즉시 재발급
+  moduleSecretUrls.value[m.id] = await getOrGenerateModuleSecretUrl(m, clean)
+  try {
+    localStorage.setItem('suite_modules_cache', JSON.stringify(suiteModules.value))
+    await saveSuiteModules(suiteModules.value)
+  } catch (err) {
+    console.error('Failed to save secret expire date change:', err)
+  }
+}
+
+async function setPresetExpireDate(m, days) {
+  const newDate = getNextDayIsoDate(days)
+  await handleSecretExpireDateChange(m, newDate)
+}
+
+async function copySecretUrl(m) {
+  const url = moduleSecretUrls.value[m.id] || await getOrGenerateModuleSecretUrl(m)
+  const dday = getSecretDdayLabel(m)
+  const expStr = m.secretAccessExpireDate || todayIsoDate.value
+  try {
+    await navigator.clipboard.writeText(url)
+    dialog.alert({
+      title: 'Secret 접속 URL 복사 완료',
+      message: `학교 관리자 전용 Secret 접속 링크가 클립보드에 복사되었습니다.\n\n[Secret 접속 URL]\n${url}\n\n* 모듈 ID: ${MODULE_CODE_MAP[m.id] || m.id}\n* 유효 만료일: ${expStr} 23:59까지 (${dday})\n* AES-256-GCM 암호화 토큰이 적용되어 링크 소지자만 지정 기간 동안 비밀번호 없이 열람 가능합니다.\n* 기간이 경과하면 자동으로 접속이 차단되며, 토글을 꺼서 즉시 비활성화할 수도 있습니다.`
+    })
+  } catch (e) {
+    window.prompt('아래 Secret 접속 URL을 복사(Ctrl+C)하세요:', url)
+  }
+}
+
+async function toggleSecretAccess(m) {
+  m.secretAccessEnabled = !m.secretAccessEnabled
+  if (m.secretAccessEnabled) {
+    // 기존에 만료일이 없거나 이미 지난 날짜라면 내일(+1일)로 기본 설정
+    if (!m.secretAccessExpireDate || m.secretAccessExpireDate < todayIsoDate.value) {
+      m.secretAccessExpireDate = getNextDayIsoDate(1)
+    }
+    const expiresAt = parseExpireDateToTimestamp(m.secretAccessExpireDate)
+    m.secretAccessExpiresAt = expiresAt
+    m.secretAccessDate = getTodayDateString()
+    const token = await generateSecretAccessToken(m.id, m.secretAccessDate, expiresAt)
+    m.secretAccessToken = token
+    moduleSecretUrls.value[m.id] = await getOrGenerateModuleSecretUrl(m, m.secretAccessExpireDate)
+  } else {
+    m.secretAccessToken = null
+    m.secretAccessExpiresAt = null
+    delete moduleSecretUrls.value[m.id]
+  }
+
+  try {
+    localStorage.setItem('suite_modules_cache', JSON.stringify(suiteModules.value))
+    await saveSuiteModules(suiteModules.value)
+    if (m.secretAccessEnabled) {
+      const expStr = m.secretAccessExpireDate || todayIsoDate.value
+      dialog.alert({
+        title: 'Secret 접속 통로 활성화',
+        message: `'${m.name}' 모듈의 학교 관리자 Secret 접속 통로가 열렸습니다.\n\n[모듈 식별 ID: ${MODULE_CODE_MAP[m.id] || m.id}]\n유효 만료일: ${expStr} 23:59까지 (${getSecretDdayLabel(m)})\n\n[URL 복사] 버튼을 눌러 링크를 학교 관리자(교장·교감·부장 등)에게 전달하시면, 비밀번호 없이 지정 기간 동안 즉시 열람하실 수 있습니다.\n\n* 학생 개인정보 보호를 위한 성명 마스킹(**동) 영구 적용\n* 지정 만료일자 자정(23:59:59)이 지나면 링크 자동 만료\n* 하단의 유효 만료일자 또는 빠른 설정 버튼으로 기간을 언제든 연장/변경 가능`
+      })
+    }
+  } catch (err) {
+    console.error('Failed to toggle secret access:', err)
+  }
+}
+const draggedModuleIndex = ref(null)
+const dragOverModuleIndex = ref(null)
+
+function onModuleDragStart(e, idx) {
+  draggedModuleIndex.value = idx
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', String(idx))
+}
+
+function onModuleDragOver(e, idx) {
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'move'
+  if (dragOverModuleIndex.value !== idx) {
+    dragOverModuleIndex.value = idx
+  }
+}
+
+function onModuleDragLeave(e, idx) {
+  if (dragOverModuleIndex.value === idx) {
+    dragOverModuleIndex.value = null
+  }
+}
+
+function onModuleDrop(e, targetIdx) {
+  e.preventDefault()
+  const fromIdx = draggedModuleIndex.value !== null
+    ? draggedModuleIndex.value
+    : parseInt(e.dataTransfer.getData('text/plain'), 10)
+
+  if (fromIdx !== null && !isNaN(fromIdx) && fromIdx !== targetIdx) {
+    const item = suiteModules.value.splice(fromIdx, 1)[0]
+    suiteModules.value.splice(targetIdx, 0, item)
+    suiteModules.value.forEach((m, idx) => {
+      m.sortOrder = idx + 1
+    })
+    try {
+      localStorage.setItem('suite_modules_cache', JSON.stringify(suiteModules.value))
+      saveSuiteModules(suiteModules.value)
+    } catch {}
+  }
+  draggedModuleIndex.value = null
+  dragOverModuleIndex.value = null
+}
+
+function onModuleDragEnd() {
+  draggedModuleIndex.value = null
+  dragOverModuleIndex.value = null
+}
+
+const suiteModules = ref([])
+const saveModulesLoading = ref(false)
+
+const iconMap = {
+  principal: GraduationCap,
+  rural: ShieldCheck,
+  exam_intent: ClipboardList,
+  junior_college: School,
+  rollbook: BookOpen,
+  stat: BarChart3
+}
+
+function getModuleThemeClasses(m) {
+  switch (m.id) {
+    case 'principal':
+      return { iconBox: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', categoryBadge: 'bg-blue-50 text-blue-700' }
+    case 'rural':
+      return { iconBox: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400', categoryBadge: 'bg-emerald-50 text-emerald-700' }
+    case 'exam_intent':
+      return { iconBox: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400', categoryBadge: 'bg-violet-50 text-violet-700' }
+    case 'junior_college':
+      return { iconBox: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', categoryBadge: 'bg-indigo-50 text-indigo-700' }
+    case 'rollbook':
+      return { iconBox: 'bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400', categoryBadge: 'bg-teal-50 text-teal-700' }
+    case 'stat':
+      return { iconBox: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', categoryBadge: 'bg-slate-100 text-slate-700' }
+    default:
+      return { iconBox: 'bg-slate-100 text-slate-700', categoryBadge: 'bg-slate-100 text-slate-700' }
+  }
+}
+
+function getModuleStatusInfo(m) {
+  const status = getModuleStatus(m)
+  let badgeClass = 'bg-slate-100 text-slate-600 border-slate-200'
+  if (!m.isEnabled) {
+    badgeClass = 'bg-slate-100 text-slate-500 border-slate-200'
+  } else if (status.code === 'ALWAYS_OPEN' || status.code === 'RUNNING') {
+    badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold'
+  } else if (status.code === 'BEFORE') {
+    badgeClass = 'bg-amber-50 text-amber-700 border-amber-200 font-bold'
+  } else if (status.code === 'ENDED') {
+    badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 font-bold'
+  }
+  return { ...status, badgeClass }
+}
+
+function applyRecommendedName(name) {
+  inputLoginSystemName.value = name
+}
+
+async function handleSaveLoginSystemName() {
+  loginSystemNameLoading.value = true
+  try {
+    await saveLoginSystemName(inputLoginSystemName.value)
+    await dialog.alert({
+      title: '시스템 명칭 저장 완료',
+      message: `로그인 화면 시스템 명칭이 '${inputLoginSystemName.value}'(으)로 저장되었습니다.`
+    })
+  } catch (e) {
+    await dialog.alert({
+      title: '저장 실패',
+      message: e.message || '저장 중 오류가 발생했습니다.',
+      level: 'error'
+    })
+  } finally {
+    loginSystemNameLoading.value = false
+  }
+}
+
+async function handleSaveSuiteModules() {
+  suiteModules.value.forEach((m, idx) => {
+    m.sortOrder = idx + 1
+  })
+  saveModulesLoading.value = true
+  try {
+    const res = await saveSuiteModules(suiteModules.value)
+    const rural = suiteModules.value.find(m => m.id === 'rural')
+    if (rural) enableRuralSystem.value = rural.isEnabled
+    const examIntent = suiteModules.value.find(m => m.id === 'exam_intent')
+    if (examIntent) enableExamIntentSystem.value = examIntent.isEnabled
+    const jc = suiteModules.value.find(m => m.id === 'junior_college')
+    if (jc) enableJuniorCollegeSystem.value = jc.isEnabled
+
+    await dialog.alert({
+      title: '대문 설정 및 일정 저장 완료',
+      message: '각 기능의 대문 노출 여부 및 운영 일정이 저장되었습니다.' + (res.dbSaved ? '\n(DB system_modules 테이블에 반영됨)' : '')
+    })
+  } catch (e) {
+    await dialog.alert({
+      title: '저장 실패',
+      message: e.message || '저장 중 오류가 발생했습니다.',
+      level: 'error'
+    })
+  } finally {
+    saveModulesLoading.value = false
+  }
+}
+
+
 
 const susiApplyStartDate = ref('')
 const susiApplyEndDate = ref('')
@@ -621,6 +1351,9 @@ const isSusiPeriodActive = computed(() => susiPeriodStatus.value === 'ACTIVE')
 
 async function loadConfig() {
   inputSchoolName.value = await fetchSchoolName()
+  inputLoginSystemName.value = await fetchLoginSystemName()
+  suiteModules.value = await fetchSuiteModules()
+  await refreshModuleSecretUrls()
   const localEdit = localStorage.getItem('pcm_allow_area_edit') === 'true'
   allowAreaEdit.value = localEdit
   disclosureCount.value = await getDisclosureCount()
@@ -668,6 +1401,21 @@ async function loadConfig() {
     realGoogleSheetRuralId.value = dbRuralId
     hasGoogleSheetRuralId.value = !!dbRuralId
     googleSheetRuralId.value = dbRuralId ? maskGoogleSheetId(dbRuralId) : ''
+    if (dbRuralId) {
+      localStorage.setItem('pcm_google_sheet_rural_id', dbRuralId)
+    } else {
+      localStorage.removeItem('pcm_google_sheet_rural_id')
+    }
+
+    const dbKcueId = configMap[KCUE_SHEET_KEY] || ''
+    realGoogleSheetKcueId.value = dbKcueId
+    hasGoogleSheetKcueId.value = !!dbKcueId
+    googleSheetKcueId.value = dbKcueId ? maskGoogleSheetId(dbKcueId) : ''
+
+    const dbAdmissionId = await getAdmissionSheetId(false)
+    realAdmissionSheetId.value = dbAdmissionId
+    hasAdmissionSheetId.value = !!dbAdmissionId
+    admissionSheetIdInput.value = dbAdmissionId ? maskGoogleSheetId(dbAdmissionId) : ''
 
     if (configMap['allow_area_edit']) {
       allowAreaEdit.value = configMap['allow_area_edit'] === 'true'
@@ -744,6 +1492,12 @@ async function saveGoogleSheetRuralId() {
       const { error } = await supabase.from('config').upsert({ key: 'google_sheet_rural_id', value: targetVal }, { onConflict: 'key' })
       if (error) throw error
 
+      if (targetVal) {
+        localStorage.setItem('pcm_google_sheet_rural_id', targetVal)
+      } else {
+        localStorage.removeItem('pcm_google_sheet_rural_id')
+      }
+
       hasGoogleSheetRuralId.value = !!targetVal
       googleSheetRuralId.value = targetVal ? maskGoogleSheetId(targetVal) : ''
       alert('농어촌 전형 구글 스프레드시트 ID가 저장되었습니다.')
@@ -776,6 +1530,68 @@ async function syncGoogleSheetPrincipal() {
     alert(`구글 시트 동기화 실패: ${e.message}`)
   } finally {
     syncPrincipalLoading.value = false
+  }
+}
+
+async function saveGoogleSheetKcueId() {
+  googleSheetKcueLoading.value = true
+  try {
+    const inputVal = googleSheetKcueId.value.trim()
+    let targetVal = inputVal
+    if (inputVal.includes('•')) {
+      targetVal = realGoogleSheetKcueId.value
+    } else {
+      targetVal = extractSheetId(inputVal)
+      realGoogleSheetKcueId.value = targetVal
+    }
+
+    await saveKcueSheetId(targetVal)
+
+    hasGoogleSheetKcueId.value = !!targetVal
+    googleSheetKcueId.value = targetVal ? maskGoogleSheetId(targetVal) : ''
+    alert(targetVal ? '대교협 수시 지원 원자료 구글 스프레드시트 ID가 저장되었습니다.' : '대교협 시트 ID가 삭제되었습니다.')
+  } catch (e) {
+    console.error(e)
+    alert('대교협 시트 ID 저장 중 오류가 발생했습니다.')
+  } finally {
+    googleSheetKcueLoading.value = false
+  }
+}
+
+async function handleSaveAdmissionSheetId() {
+  admissionSheetLoading.value = true
+  try {
+    const inputVal = admissionSheetIdInput.value.trim()
+    let targetVal = inputVal
+    if (inputVal.includes('•')) {
+      targetVal = realAdmissionSheetId.value
+    } else {
+      targetVal = extractSheetId(inputVal)
+      realAdmissionSheetId.value = targetVal
+    }
+
+    await saveAdmissionSheetId(targetVal)
+    hasAdmissionSheetId.value = !!targetVal
+    admissionSheetIdInput.value = targetVal ? maskGoogleSheetId(targetVal) : ''
+    alert(targetVal ? '2027 대입 일정 구글 스프레드시트 ID가 저장되었습니다.' : '대입 일정 시트 ID가 삭제(초기화)되었습니다.')
+  } catch (e) {
+    console.error(e)
+    alert('대입 일정 시트 ID 저장 중 오류가 발생했습니다.')
+  } finally {
+    admissionSheetLoading.value = false
+  }
+}
+
+async function handleRefreshAdmissionData() {
+  admissionRefreshLoading.value = true
+  try {
+    await fetchAdmissionCalendarData({ forceRefresh: true })
+    alert('2027 대입 일정 시트 데이터가 성공적으로 갱신되었습니다!')
+  } catch (e) {
+    console.error(e)
+    alert(`동기화 실패: ${e.message}`)
+  } finally {
+    admissionRefreshLoading.value = false
   }
 }
 

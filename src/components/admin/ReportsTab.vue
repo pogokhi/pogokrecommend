@@ -59,6 +59,85 @@
         </div>
       </div>
 
+      <!-- ── 2027 대입 확정 원장 안내 배너 ── -->
+      <div v-if="isUsingKcueArchive" class="mb-4 bg-linear-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-extrabold text-lg shrink-0 shadow-xs">
+            🏛️
+          </div>
+          <div>
+            <h4 class="text-xs sm:text-sm font-extrabold text-emerald-950 m-0 flex items-center gap-2 flex-wrap">
+              2027학년도 대입 학교장추천전형 원서접수 확정 대장
+              <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-200 text-emerald-950 border border-emerald-300 font-extrabold">
+                총 {{ totalRecommendedStats.totalStudents }}명 ({{ totalRecommendedStats.totalCases }}건)
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[11px] bg-blue-100 text-blue-900 border border-blue-200 font-bold">
+                대입 학년도 종료일(2027.02.28)까지 상시 조회·인쇄 지원
+              </span>
+            </h4>
+            <p class="text-xs text-emerald-900 m-0 mt-1 leading-relaxed">
+              현재 2027 학교장 추천 선발은 모두 종료되었으나, 이번 대입 학년도가 종료될 때까지 교사 및 관리자가 추천 명단 조회, 실시간 검색, 추천 대장 인쇄 및 엑셀 출력을 정상 이용할 수 있도록 확정 원장 데이터를 제공합니다.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1.5 rounded-lg border border-emerald-200">
+            2027 대입 원장 연동
+          </span>
+        </div>
+      </div>
+
+      <!-- ── 검색 및 학급 필터 툴바 ── -->
+      <div class="mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-bold text-slate-500">학급 필터:</span>
+          <div class="flex items-center gap-1 flex-wrap">
+            <button
+              class="px-2.5 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer border"
+              :class="filterClass === 'all' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
+              @click="filterClass = 'all'"
+            >
+              전체
+            </button>
+            <button
+              v-for="c in classNumbers"
+              :key="c"
+              class="px-2 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer border"
+              :class="filterClass === String(c) ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
+              @click="filterClass = String(c)"
+            >
+              {{ c }}반
+            </button>
+            <button
+              class="px-2.5 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer border"
+              :class="filterClass === 'grad' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
+              @click="filterClass = 'grad'"
+            >
+              졸업생
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 min-w-[260px] sm:w-72">
+          <div class="relative w-full">
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="대학명, 모집단위, 학생이름, 학번 검색..."
+              class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+            />
+            <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+            <button
+              v-if="searchQuery"
+              @click="searchQuery = ''"
+              class="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 text-xs cursor-pointer border-none bg-transparent"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- ── 화면용 데이터 테이블 영역 ────────────────────────── -->
       <div class="flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <!-- 보고서 헤더 -->
@@ -672,7 +751,8 @@ import { dialog } from '../common/dialog.js'
 import { supabase } from '../../utils/supabaseClient.js'
 import { decryptText } from '../../utils/cryptoUtils.js'
 import { formatScore } from '../../utils/scorePreviewShared.js'
-import { fetchRoundSchedulesMap, DEFAULT_SCHEDULES, parseKstDate } from '../../utils/roundSchedule.js'
+import { fetchRoundSchedulesMap, DEFAULT_SCHEDULES, parseKstDate, isRoundAnnouncedOrDone } from '../../utils/roundSchedule.js'
+import { getKcueRecommendationApps, buildReportsDataFromKcue, exportKcueQuotaStatsExcel } from '../../utils/recommendationKcueAdapter.js'
 
 const loading = ref(false)
 const downloading = ref(false)
@@ -686,6 +766,10 @@ const gradConditionMap = ref({})
 const selectedRoundFilter = ref('all')
 const roundsList = ref([])
 const schedulesMap = ref({})
+const isUsingKcueArchive = ref(false)
+const searchQuery = ref('')
+const filterClass = ref('all')
+const classNumbers = Array.from({ length: 11 }, (_, i) => i + 1)
 
 // 화면 및 인쇄 모드 상태
 const activeViewMode = ref('recommend') // 'recommend' | 'abandoned'
@@ -803,7 +887,16 @@ const roundOptions = computed(() => {
 })
 
 const roundLabelText = computed(() => {
-  if (selectedRoundFilter.value === 'all') return '(전체)'
+  if (selectedRoundFilter.value === 'all') {
+    const completedCount = (roundsList.value || []).filter(r => isRoundAnnouncedOrDone(r, schedulesMap.value[r.id])).length
+    if (completedCount >= totalRounds.value && totalRounds.value > 1) {
+      return `(전체 ${totalRounds.value}차 합산)`
+    }
+    if (completedCount >= 2) {
+      return `(1~${completedCount}차 누적 합산)`
+    }
+    return '(전체 합산)'
+  }
   if (Number(selectedRoundFilter.value) === 0) return '(사전 선발)'
   return `(${selectedRoundFilter.value}차 선발)`
 })
@@ -876,10 +969,25 @@ const flatStats = computed(() => {
 
       const remainingAfterPrev = hasQuota ? Math.max(0, t.unit_quota - prevUsedCount) : null
 
+      // 현재 완료된(선정결과 공지 시작 이후) 차수 목록
+      const completedRoundIds = new Set(
+        (roundsList.value || []).filter(r => isRoundAnnouncedOrDone(r, schedulesMap.value[r.id])).map(r => r.id)
+      )
+
       // 현재 선택된 차수 기준 추천 대상 학생들
       let trackApps = []
       if (curRound === null || isNaN(curRound)) {
-        trackApps = allTrackRecs
+        // [합산 모드]:
+        // 1,2차가 끝나고 3차 종료 전까지는 1차와 2차를 합산한 결과
+        // 3차가 종료된 이후부터는 1,2,3차가 합산되어서 보여짐 (2027년 2월 28일까지 상시 유지)
+        if (completedRoundIds.size > 0) {
+          trackApps = allTrackRecs.filter(ap => {
+            const r = ap.recommended_round ?? ap.round ?? 1
+            return completedRoundIds.has(r)
+          })
+        } else {
+          trackApps = allTrackRecs.filter(ap => (ap.recommended_round ?? ap.round ?? 1) === 1)
+        }
       } else {
         trackApps = allTrackRecs.filter(ap => {
           const r = ap.recommended_round ?? ap.round ?? 1
@@ -1092,6 +1200,22 @@ const currentDate = computed(() => {
   return now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 })
 
+function applyKcueArchiveFallback(gMap = null) {
+  const kcueData = buildReportsDataFromKcue()
+  isUsingKcueArchive.value = true
+  stats.value = kcueData.stats
+  allApplicantsMap.value = kcueData.allApplicantsMap
+  recommendedList.value = kcueData.recommendedList
+  studentMap.value = kcueData.studentMap
+  abandonedList.value = []
+  roundsList.value = [{ id: 1, name: '1차 선발', status: 'FINALIZED' }]
+  totalRounds.value = 1
+  selectedRoundFilter.value = 'all'
+  if (gMap && Object.keys(gMap).length > 0) {
+    gradConditionMap.value = gMap
+  }
+}
+
 async function loadData() {
   loading.value = true
   try {
@@ -1100,6 +1224,11 @@ async function loadData() {
     } catch (err) {
       console.warn('포기원 서명 자동 복구 예외:', err)
     }
+    if (!supabase) {
+      applyKcueArchiveFallback()
+      return
+    }
+
     stats.value = await getQuotaStats()
     if (supabase) {
       // 1. 지원서, 학생 마스터, 수도권/지역 추천 전형(졸업조건), 라운드 목록, 라운드 일정 로드
@@ -1159,6 +1288,14 @@ async function loadData() {
 
       // 지원서 분리: 유효 추천 지원서 vs 포기된 지원서
       const allApps = (allAppsRaw || []).filter(ap => !ap.is_abandoned)
+
+      // 유효 추천 지원서가 없는 경우 (수시 추천 종료 후 아카이브 모드: 2027 원서접수 확정 원장 자동 연동)
+      if (allApps.length === 0) {
+        applyKcueArchiveFallback(gMap)
+        return
+      }
+
+      isUsingKcueArchive.value = false
       const rawAbandonedApps = (allAppsRaw || []).filter(ap => {
         if (ap.is_abandoned) return true
         if (ap.scanned_doc_url) {
@@ -1303,7 +1440,8 @@ async function loadData() {
       recommendedList.value = selectedApps
     }
   } catch (e) {
-    await dialog.alert({ title: '데이터 조회 실패', message: e.message || '보고서 데이터 조회 중 오류가 발생했습니다.' })
+    console.warn('보고서 데이터 조회 예외, 2027 원장 아카이브로 폴백:', e)
+    applyKcueArchiveFallback()
   } finally {
     loading.value = false
   }
@@ -1320,6 +1458,17 @@ async function downloadExcel() {
       const a = document.createElement('a')
       a.href = url
       a.download = `학교장추천전형_${roundStr}_추천포기자_명단_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+      return
+    }
+
+    if (isUsingKcueArchive.value) {
+      const blob = exportKcueQuotaStatsExcel(flatStats.value, roundStr)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `2027학년도_학교장추천전형_원서접수_확정명단_${roundStr}_${new Date().toISOString().slice(0, 10)}.xlsx`
       a.click()
       window.URL.revokeObjectURL(url)
       return
