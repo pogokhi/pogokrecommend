@@ -144,15 +144,17 @@
               <span v-if="!collapsed" class="truncate">시트 새로고침</span>
             </button>
 
-            <!-- GAS 연동 설정 버튼 -->
+            <!-- 관리자 전용: 시트 연동 관리 (관리자 설정 바로가기) -->
             <button
-              id="gasSettingsBtn"
+              v-if="auth.isAdmin"
+              type="button"
+              @click="$router.push('/admin?tab=settings')"
               class="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer border-none bg-transparent"
               :class="collapsed ? 'justify-center px-0' : 'justify-start'"
-              title="구글 앱스 스크립트(GAS) Web App 주소 설정"
+              title="관리자 설정 > 환경 설정 > 구글 스프레드시트 DB 연동 설정으로 이동합니다"
             >
               <span class="text-sm">⚙️</span>
-              <span v-if="!collapsed" class="truncate">GAS 연동 설정</span>
+              <span v-if="!collapsed" class="truncate">시트 연동 (관리자)</span>
             </button>
 
             <!-- 결석계 관리 바로가기 리스너 연결용 숨김 태그 -->
@@ -223,6 +225,21 @@
 
       <!-- 본문 스크롤 영역 -->
       <div class="flex-1 overflow-x-auto overflow-y-auto bg-slate-50 relative min-w-0">
+        <!-- 화면 전환 로딩 표시기 (원반출석부 / 이동반출석부 전환 등) -->
+        <transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+          <div
+            v-if="isViewSwitching"
+            class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center z-50 p-4"
+          >
+            <div class="bg-white/95 rounded-2xl p-6 shadow-xl border border-slate-200/80 flex flex-col items-center gap-3 max-w-sm text-center">
+              <div class="w-10 h-10 border-3 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+              <div>
+                <p class="text-sm font-black text-slate-800 m-0">{{ viewSwitchingText }}</p>
+                <p class="text-xs text-slate-500 m-0 mt-1">출석부 및 학생 출결 데이터를 생성하고 있습니다...</p>
+              </div>
+            </div>
+          </div>
+        </transition>
         <!-- 초보 교사용 직관 퀵 팁 가이드 (1줄 헤더 + 클릭 시 펼침/접힘) -->
         <div class="no-print mx-4 mt-2.5 mb-1 bg-white border border-slate-200/90 rounded-xl shadow-2xs overflow-hidden transition-all duration-200">
           <button
@@ -348,42 +365,7 @@
           </div>
         </div>
 
-        <!-- GAS Web App Settings Modal -->
-        <div class="modal-backdrop no-print" id="gasSettingsModal" style="display: none;">
-          <div class="modal-dialog">
-            <div class="modal-header">
-              <div class="modal-title-group">
-                <span class="modal-icon">⚙️</span>
-                <div>
-                  <h3 class="modal-title">구글 앱스 스크립트(GAS) Web App 설정</h3>
-                  <p class="modal-desc">'출결기록' 시트에 실시간 저장을 위한 웹 앱 주소를 등록합니다.</p>
-                </div>
-              </div>
-              <button type="button" class="modal-close-btn" id="closeGasSettingsBtn" title="닫기">&times;</button>
-            </div>
-            <div class="modal-body">
-              <div class="modal-section">
-                <label class="modal-label" for="gasUrlInput">배포된 Web App URL:</label>
-                <input type="url" id="gasUrlInput" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" />
-                <div class="field-hint">
-                  ※ 스프레드시트 [확장 프로그램] &gt; [Apps Script]에서 배포한 웹 앱 URL을 입력하세요.<br>
-                  ※ 자세한 설치 방법은 <code>docs/apps_script_code.js</code>를 참고하세요.
-                </div>
-              </div>
-              <div class="modal-section" style="margin-top: 15px;">
-                <label class="modal-label" for="teacherAuthKeyInput">교사용 결석계 관리 인증 키:</label>
-                <input type="text" id="teacherAuthKeyInput" class="styled-input" placeholder="teacher2026" />
-                <div class="field-hint">
-                  ※ 결석계 대장 조회 및 인쇄 페이지 접근 시 사용할 비밀 토큰입니다. (기본값: <code>teacher2026</code>)
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" id="cancelGasSettingsBtn">취소</button>
-              <button type="button" class="btn btn-primary" id="saveGasSettingsBtn">저장하기</button>
-            </div>
-          </div>
-        </div>
+
 
         <!-- NEIS Monthly Attendance Summary Report Modal -->
         <div class="modal-backdrop no-print" id="neisReportModal" style="display: none;">
@@ -586,7 +568,18 @@ const rollbookContainer = ref(null)
 const collapsed = ref(false)
 const isHelpOpen = ref(false)
 const activeView = ref('homeroom')
+const isViewSwitching = ref(false)
+const viewSwitchingText = ref('출석부 데이터를 불러오는 중입니다...')
 let appInstance = null
+
+const viewLabelMap = {
+  homeroom: '원적학급 주간 출석부 데이터를 불러오는 중입니다...',
+  moving: '이동수업 교실별 출석부를 불러오는 중입니다...',
+  today: '오늘의 실시간 출결 현황을 집계하는 중입니다...',
+  absence: '결석계 접수 대장 데이터를 조회하는 중입니다...',
+  lunch: '급식 식단표 데이터를 불러오는 중입니다...',
+  finder: '학생 시간표 검색 인덱스를 구성하는 중입니다...'
+}
 const printSheetUrl = computed(() => SheetAPI.getPrintSheetUrl())
 
 // 사이드바 메뉴 정의 (전체 테마와 일치하는 효율적 구조)
@@ -608,11 +601,20 @@ const currentViewInfo = computed(() => {
   return allMenus.find(m => m.key === activeView.value) || rollbookMenus[0]
 })
 
-function handleMenuClick(key) {
+async function handleMenuClick(key) {
+  if (activeView.value === key && !isViewSwitching.value) return
+  isViewSwitching.value = true
+  viewSwitchingText.value = viewLabelMap[key] || '출석부 데이터를 불러오는 중입니다...'
   activeView.value = key
-  if (appInstance) {
-    appInstance.switchView(key)
-  }
+  await nextTick()
+  setTimeout(() => {
+    if (appInstance) {
+      appInstance.switchView(key)
+    }
+    setTimeout(() => {
+      isViewSwitching.value = false
+    }, 150)
+  }, 40)
 }
 
 const userName = computed(() => {
@@ -669,11 +671,19 @@ onMounted(async () => {
     appInstance = new App()
     window.appInstance = appInstance
 
-    // switchView 가 app 내부에서 호출될 때 activeView 도 자동 동기화되도록 연동
+    // switchView 가 app 내부에서 호출될 때 activeView 및 로딩 상태 자동 동기화
     const originalSwitchView = appInstance.switchView.bind(appInstance)
     appInstance.switchView = (view) => {
       activeView.value = view
-      return originalSwitchView(view)
+      isViewSwitching.value = true
+      viewSwitchingText.value = viewLabelMap[view] || '출석부 데이터를 불러오는 중입니다...'
+      setTimeout(() => {
+        const ret = originalSwitchView(view)
+        setTimeout(() => {
+          isViewSwitching.value = false
+        }, 150)
+        return ret
+      }, 40)
     }
 
     await appInstance.init()

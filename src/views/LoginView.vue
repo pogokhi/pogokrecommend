@@ -7,7 +7,7 @@
           <span>🏫</span>
           <span>{{ schoolName }}</span>
         </span>
-        <span v-if="viewMode === 'calendar'" class="text-xs font-bold text-slate-500 hidden sm:inline">
+        <span v-if="viewMode === 'calendar'" class="text-xs font-bold text-slate-500 hidden sm:inline portal-title-font">
           {{ displaySystemName }}
         </span>
       </div>
@@ -42,11 +42,13 @@
             v-if="isFromStat"
             type="button"
             @click="goToStatDashboard"
-            class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
+            :disabled="isNavigatingToStat"
+            class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-75 disabled:cursor-wait"
             title="대입 통계 시스템 대시보드로 이동"
           >
-            <span>📊</span>
-            <span>대입 통계 시스템으로 돌아가기</span>
+            <div v-if="isNavigatingToStat" class="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <span v-else>📊</span>
+            <span>{{ isNavigatingToStat ? '이동 중...' : '대입 통계 시스템으로 돌아가기' }}</span>
           </button>
 
           <button
@@ -93,7 +95,7 @@
         </div>
 
         <!-- 통합 시스템 명칭 (관리자 설정값 연동) -->
-        <h1 class="text-slate-900 m-0 text-xl sm:text-2xl font-black tracking-tight leading-snug">
+        <h1 class="text-slate-900 m-0 text-xl sm:text-2xl font-black tracking-tight leading-snug portal-title-font min-h-8 flex items-center justify-center">
           {{ displaySystemName }}
         </h1>
       </div>
@@ -668,7 +670,6 @@ import { useAuthStore } from '../stores/auth'
 import { schoolName, fetchSchoolName } from '../utils/schoolConfig'
 import { checkRuralSystemOpenStatus } from '../api/ruralApi.js'
 import { checkExamIntentSystemEnabled } from '../api/examIntentApi.js'
-import { checkJuniorCollegeSystemEnabled } from '../api/juniorCollegeApi.js'
 import { fetchLoginSystemName, loginSystemName, fetchSuiteModules, getModuleStatus, DEFAULT_SYSTEM_NAME } from '../api/suiteModulesApi.js'
 import { setStatSessionPassword } from '../api/statApi.js'
 import { supabase } from '../utils/supabaseClient'
@@ -705,11 +706,20 @@ const isFromStat = computed(() => {
   return route.query.from === 'stat' || sessionStorage.getItem('pcm_calendar_from') === 'stat'
 })
 
-function goToStatDashboard() {
+const isNavigatingToStat = ref(false)
+
+async function goToStatDashboard() {
+  if (isNavigatingToStat.value) return
+  isNavigatingToStat.value = true
   try {
     sessionStorage.removeItem('pcm_calendar_from')
   } catch (e) {}
-  router.push('/stat')
+  try {
+    await router.push('/stat')
+  } catch (err) {
+    console.error('Failed to navigate to /stat:', err)
+    isNavigatingToStat.value = false
+  }
 }
 
 function openLoginView() {
@@ -748,43 +758,12 @@ function handleCalendarRefresh() {
 const activeTab = ref('student')
 
 // ── 졸업생 로그인 탭 노출 제어 ──────────────────────────────────────────
-// 관리자가 학교장 추천자 선발, 농어촌 추천, 전문대학 추천 중 1개 이상을 오픈했을 때만 졸업생 탭 노출
+// 기본은 졸업생 탭이 없고(false), 관리자가 학추(학교장 추천자 선발) 또는 농어촌 추천을 토글하여 오픈한 경우에만 노출
 const isPrincipalOpen = ref(false)
 const isRuralOpen = ref(false)
-const isJuniorCollegeOpen = ref(false)
-
-// 1. 초기 로컬 스토리지 캐시 기반 빠른 사전 동기화 (깜빡임 방지)
-try {
-  const cachedModulesRaw = localStorage.getItem('suite_modules_cache')
-  if (cachedModulesRaw) {
-    const cachedMods = JSON.parse(cachedModulesRaw)
-    if (Array.isArray(cachedMods)) {
-      const pMod = cachedMods.find(m => m.id === 'principal')
-      if (pMod) {
-        const pStatus = getModuleStatus(pMod)
-        const pForGrad = !pMod.targetRoles || pMod.targetRoles.includes('graduate')
-        isPrincipalOpen.value = pMod.isEnabled !== false && pStatus.isOpen && pForGrad
-      }
-      const rMod = cachedMods.find(m => m.id === 'rural')
-      const rEnabled = localStorage.getItem('pcm_enable_rural_system') === 'true'
-      if (rMod) {
-        const rStatus = getModuleStatus(rMod)
-        const rForGrad = !rMod.targetRoles || rMod.targetRoles.includes('graduate')
-        isRuralOpen.value = rMod.isEnabled !== false && rEnabled && rStatus.isOpen && rForGrad
-      }
-      const jcMod = cachedMods.find(m => m.id === 'junior_college')
-      const jcEnabled = localStorage.getItem('pcm_enable_junior_college_system') !== 'false'
-      if (jcMod) {
-        const jcStatus = getModuleStatus(jcMod)
-        const jcForGrad = !jcMod.targetRoles || jcMod.targetRoles.includes('graduate')
-        isJuniorCollegeOpen.value = jcMod.isEnabled !== false && jcEnabled && jcStatus.isOpen && jcForGrad
-      }
-    }
-  }
-} catch (e) {}
 
 const isGraduateTabVisible = computed(() => {
-  return isPrincipalOpen.value || isRuralOpen.value || isJuniorCollegeOpen.value
+  return isPrincipalOpen.value || isRuralOpen.value
 })
 
 watch(isGraduateTabVisible, (visible) => {
@@ -805,17 +784,7 @@ async function updateGraduateSystemsOpenStatus() {
       suiteModules.value = mods
     }
 
-    // 1. 전문대학 학교장 추천 시스템 점검
-    try {
-      const jcEnabled = await checkJuniorCollegeSystemEnabled()
-      const mJc = suiteModules.value.find(m => m.id === 'junior_college')
-      const jcModOpen = mJc ? (mJc.isEnabled !== false && getModuleStatus(mJc).isOpen && (!mJc.targetRoles || mJc.targetRoles.includes('graduate'))) : true
-      isJuniorCollegeOpen.value = jcModOpen && (mJc ? mJc.isEnabled !== false : jcEnabled)
-    } catch (e) {
-      console.warn('Failed to check JC status for graduate tab:', e)
-    }
-
-    // 2. 농어촌(기회균형) 전형 추천 등록 시스템 점검
+    // 1. 농어촌(기회균형) 전형 추천 등록 시스템 점검
     try {
       const ruralStatus = await checkRuralSystemOpenStatus()
       const mRural = suiteModules.value.find(m => m.id === 'rural')
@@ -823,10 +792,11 @@ async function updateGraduateSystemsOpenStatus() {
       const ruralModOpen = mRural ? (mRural.isEnabled !== false && getModuleStatus(mRural).isOpen && (!mRural.targetRoles || mRural.targetRoles.includes('graduate'))) : true
       isRuralOpen.value = ruralModOpen && (ruralStatus?.isEnabled === true && ruralStatus?.isOpen === true)
     } catch (e) {
+      isRuralOpen.value = false
       console.warn('Failed to check rural status for graduate tab:', e)
     }
 
-    // 3. 학교장 추천자 선발 시스템 점검
+    // 2. 학교장 추천자 선발 시스템 점검
     try {
       const mPrincipal = suiteModules.value.find(m => m.id === 'principal')
       const principalModOpen = mPrincipal ? (mPrincipal.isEnabled !== false && getModuleStatus(mPrincipal).isOpen && (!mPrincipal.targetRoles || mPrincipal.targetRoles.includes('graduate'))) : true
@@ -898,7 +868,7 @@ const cleanPhoneInput = computed(() => {
 })
 
 const suiteModules = ref([])
-const displaySystemName = computed(() => loginSystemName.value || DEFAULT_SYSTEM_NAME || '3학년 진학·학사 통합 포털')
+const displaySystemName = computed(() => loginSystemName.value || '')
 
 const activeModuleBadges = computed(() => {
   if (suiteModules.value && suiteModules.value.length > 0) {
@@ -984,7 +954,7 @@ async function handleLogin() {
       }
     } else if (activeTab.value === 'graduate') {
       if (!isGraduateTabVisible.value) {
-        throw new Error('현재 졸업생 대상 추천 신청 시스템(학교장 추천, 농어촌, 전문대 추천)이 모두 오픈 기간이 아닙니다.')
+        throw new Error('현재 졸업생 대상 추천 신청 시스템(학교장 추천, 농어촌 추천)이 모두 오픈 기간이 아닙니다.')
       }
       const code = loginStudentCode.value.trim()
       const pw = loginPassword.value

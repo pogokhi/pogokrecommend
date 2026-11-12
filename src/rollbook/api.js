@@ -1,3 +1,5 @@
+import { supabase } from '../utils/supabaseClient.js';
+
 /**
  * Google Sheets API & CSV Loader Service for ggomrollbook
  * Supports live Google Sheets fetch via gviz/tq (JSONP / CSV) with offline fallback.
@@ -9,7 +11,7 @@
 
 export const ROLLBOOK_CONFIG = {
   // 1. 구글 스프레드시트 ID (단 하나만 필요)
-  SHEET_ID: '1-Ki9X_EKw5xEq-Pc-ba-PBU6VWhvdBun-1bkUjTTH0Q',
+  SHEET_ID: '',
 
   // 2. 스프레드시트 각 시트 GID 및 시트명 (gviz로 0초 만에 실시간 조회)
   GIDS: {
@@ -52,7 +54,9 @@ let _configuredGasUrl = localStorage.getItem('ggom_gas_webapp_url') || DEFAULT_G
 
 export const SheetAPI = {
   config: ROLLBOOK_CONFIG,
-  sheetId: SHEET_ID,
+  get sheetId() {
+    return localStorage.getItem('pcm_google_sheet_rollbook_id') || ROLLBOOK_CONFIG.SHEET_ID;
+  },
   gidAttendance: GID_ATTENDANCE,
   gidHolidays: GID_HOLIDAYS,
   sheetNameRecords: SHEET_NAME_RECORDS,
@@ -89,7 +93,37 @@ export const SheetAPI = {
   /**
    * Fetch sheet data via gviz JSONP or CSV
    */
+  /**
+   * DB(Supabase) config 테이블로부터 구글 시트 ID 및 GAS Web App URL 동기화
+   */
+  async syncConfigFromDatabase() {
+    if (typeof window !== 'undefined' && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('config')
+          .select('key, value')
+          .in('key', ['google_sheet_rollbook_id', 'google_sheet_rollbook_gas_url']);
+        if (!error && Array.isArray(data)) {
+          data.forEach(item => {
+            if (item.key === 'google_sheet_rollbook_id' && item.value) {
+              localStorage.setItem('pcm_google_sheet_rollbook_id', item.value);
+            }
+            if (item.key === 'google_sheet_rollbook_gas_url' && item.value) {
+              localStorage.setItem('ggom_gas_webapp_url', item.value);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('[SheetAPI] config sync from db failed:', e);
+      }
+    }
+  },
+
   async loadAllData() {
+    await this.syncConfigFromDatabase();
+    if (!this.sheetId) {
+      throw new Error('선택교과 출석관리 구글 스프레드시트 ID가 설정되지 않았습니다. 관리자 설정 > 환경 설정 > 구글 스프레드시트 DB 연동 설정에서 시트 ID를 등록해 주세요.');
+    }
     let attendanceCsv = '';
     let holidaysCsv = '';
     let recordsCsv = '';
@@ -356,7 +390,7 @@ export const SheetAPI = {
   async fetchSubmittedReports() {
     const gasUrl = this.getGasUrl();
     if (!gasUrl) return [];
-    const teacherKey = localStorage.getItem('teacher_auth_key') || 'teacher2026';
+    const teacherKey = 'teacher2026';
     const sep = gasUrl.includes('?') ? '&' : '?';
     const url = `${gasUrl}${sep}action=get_submitted_reports&key=${encodeURIComponent(teacherKey)}`;
 

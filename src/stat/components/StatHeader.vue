@@ -23,20 +23,33 @@
 
       <!-- 통합 학년도 & 모집범위 & 새로고침 툴바 -->
       <div class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50/90 p-0.5 shadow-2xs shrink-0">
-        <!-- 1. 학년도 선택 드롭다운 -->
+        <!-- 1. 학년도 선택 드롭다운 (고1·2 분석 시 해당 학년 대입학년도로 고정 및 잠금) -->
         <div class="relative">
           <select
-            :value="selectedAcademicYear"
-            :disabled="isLoadingYearData"
+            :value="displayedAdmissionYear"
+            :disabled="isLoadingYearData || isLowerGradeMode"
             @change="e => handleYearChange(e.target.value)"
-            class="appearance-none pl-2 pr-6 py-1 rounded-md text-xs font-black bg-white text-amber-950 border border-amber-200/80 shadow-2xs hover:border-amber-400 focus:outline-none cursor-pointer disabled:opacity-60 transition-colors"
-            title="대입 학년도 선택"
+            :class="[
+              'appearance-none pl-2 pr-6 py-1 rounded-md text-xs font-black shadow-2xs focus:outline-none transition-colors',
+              isLowerGradeMode
+                ? 'bg-amber-50 text-amber-950 border border-amber-300/80 cursor-not-allowed select-none font-bold'
+                : 'bg-white text-amber-950 border border-amber-200/80 hover:border-amber-400 cursor-pointer disabled:opacity-60'
+            ]"
+            :title="lowerGradeDropdownTitle"
           >
-            <option v-for="y in availableAcademicYears" :key="y" :value="y">
-              {{ y }}학년도
+            <option v-if="isLowerGradeMode" :value="displayedAdmissionYear">
+              {{ displayedAdmissionYear }}학년도
             </option>
+            <template v-else>
+              <option v-for="y in availableAcademicYears" :key="y" :value="y">
+                {{ y }}학년도
+              </option>
+            </template>
           </select>
-          <svg class="w-3 h-3 text-amber-700 pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span v-if="isLowerGradeMode" class="absolute right-1.5 top-1/2 -translate-y-1/2 text-amber-700 pointer-events-none text-[10px]" title="해당 학년 대입학년도 고정">
+            🔒
+          </span>
+          <svg v-else class="w-3 h-3 text-amber-700 pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </div>
@@ -238,8 +251,9 @@ const props = defineProps({
   }
 })
 import KcueYearSheetModal from './KcueYearSheetModal.vue'
+import PromotionProcessModal from './modals/PromotionProcessModal.vue'
 import { useRouter } from 'vue-router'
-import { useStatData } from '../composables/useStatData'
+import { useStatData, getGradeAdmissionYear } from '../composables/useStatData'
 import { schoolName } from '../../utils/schoolConfig'
 import { getKcueSheetId } from '../../api/statApi'
 
@@ -273,12 +287,45 @@ const adminMaskTooltip = computed(() => {
     return '1단계 [기본 디폴트 마스킹]: 맨 뒷글자(**동)만 표시 (2글자 이름은 ** 전체 마스킹). 클릭 시 2단계(성과 맨뒷글자 총 2개 표시: 홍*동)로 전환됩니다.'
   }
   if (adminMaskMode.value === 1) {
-    return '2단계 [부분 마스킹]: 성+맨뒷글자(홍*동) 2글자 표시 중. 클릭 시 3단계(이름 전체 공개: 홍길동)로 전환됩니다.'
+    return '2단계 [부분 마스킹]: 성+맨뒷글자(홍*동, 2글자는 성 가림 *윤) 표시 중. 클릭 시 3단계(이름 전체 공개: 홍길동)로 전환됩니다.'
   }
   return '3단계 [이름 전체공개]: 모든 이름이 표시 중. 클릭 시 다시 1단계(디폴트 마스킹: **동)로 되돌아갑니다.'
 })
 
 const isYearSheetModalOpen = ref(false)
+
+const isPromotionModalOpen = ref(false)
+
+const targetGradeNumber = computed(() => {
+  const tabId = props.currentTabItem?.id
+  if (tabId === 'grade2Analysis') return 2
+  if (tabId === 'grade1Analysis') return 1
+  return null
+})
+
+const isLowerGradeMode = computed(() => targetGradeNumber.value !== null)
+
+const displayedAdmissionYear = computed(() => {
+  if (targetGradeNumber.value) {
+    return getGradeAdmissionYear(targetGradeNumber.value)
+  }
+  return selectedAcademicYear.value
+})
+
+const lowerGradeDropdownTitle = computed(() => {
+  if (targetGradeNumber.value) {
+    return `고${targetGradeNumber.value} 대입 분석: 해당 학년의 대입 학년도인 ${displayedAdmissionYear.value}학년도로 고정됩니다. (변경 불가)`
+  }
+  return '대입 학년도 선택'
+})
+
+async function handlePromotionApplied(promotedRecords) {
+  isPromotionModalOpen.value = false
+  // 모의고사 성적 재로드 및 알림
+  await loadMockExamData(true)
+  alert(`신학년도 진급 처리가 성공적으로 반영되었습니다.\n총 ${promotedRecords?.length || 0}건의 모의고사 성적이 승격 매핑되었습니다.`)
+}
+
 
 const currentScopeLabel = computed(() => {
   const opt = scopeOptions.find(o => o.value === selectedScope.value)
@@ -309,7 +356,7 @@ const window = globalThis.window
 const kcueSheetId = ref('')
 
 onMounted(async () => {
-  kcueSheetId.value = (await getKcueSheetId()) || '1U5Vnx2x8gnXQlI3N4deyaurKxj-naZP0cRBb3lQnT4o'
+  kcueSheetId.value = (await getKcueSheetId()) || '1hkgi-WKdbh_cIK1Ctzv3BBxqKLe50DCKAT8cmT9wbWg'
 })
 
 const handleLogout = async () => {

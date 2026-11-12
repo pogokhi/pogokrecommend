@@ -1,19 +1,19 @@
 <template>
-  <div class="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm transition-all duration-300">
+  <div ref="widgetRootRef" class="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm transition-all duration-300">
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100">
       <div>
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/80 mb-2">
           <span>🎯</span>
-          <span>내신 vs 수능 성적 비교 & 2027 대입 전략</span>
+          <span>내신 vs {{ examTerm }} 성적 비교 & {{ academicYearLabel }} 대입 전략</span>
           <span class="text-indigo-300">|</span>
           <span class="text-slate-500 font-semibold">성적 분석 & 대입 전략</span>
         </div>
         <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight m-0">
-          내신 vs 수능 성적 비교 분석 & 2027학년도 5대 대입 핵심 전략
+          내신 vs {{ examTerm }} 성적 비교 분석 & {{ academicYearLabel }}학년도 5대 대입 핵심 전략
         </h3>
         <p class="text-xs text-slate-500 m-0 mt-1 leading-relaxed">
-          내신 대비 수능 과목별 등급 격차(5개 영역 방사형), 사탐런 현황, 수능최저 충족 실질경쟁률 및 2027학년도 5대 대입 전략을 종합 분석합니다.
+          내신 대비 {{ examTerm }} 과목별 등급 격차(5개 영역 방사형), 사탐런 현황, 수능최저 충족 실질경쟁률 및 {{ academicYearLabel }}학년도 5대 대입 전략을 종합 분석합니다.
         </p>
       </div>
 
@@ -21,17 +21,37 @@
       <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
         <div class="bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-right">
           <span class="text-[10px] text-amber-800 block font-semibold">사탐런 전향율</span>
-          <span class="text-sm font-black text-amber-700 font-mono">48.7% <span class="text-[11px] font-medium text-amber-600">(56명)</span></span>
+          <span class="text-sm font-black text-amber-700 font-mono">
+            <template v-if="isLoadingMockExams && (!mockStats || effectiveSatamStats.naturalCohortCount === 0)">
+              <span class="text-xs text-amber-600 font-medium">분석 중...</span>
+            </template>
+            <template v-else-if="effectiveSatamStats.naturalCohortCount > 0">
+              {{ effectiveSatamStats.totalRunRate }}% <span class="text-[11px] font-medium text-amber-600">({{ effectiveSatamStats.totalRunCount }}명)</span>
+            </template>
+            <template v-else>
+              -
+            </template>
+          </span>
         </div>
-        <div class="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-right">
-          <span class="text-[10px] text-blue-800 block font-semibold">최저 충족 마법</span>
-          <span class="text-sm font-black text-blue-700 font-mono">6:1 ➔ 2:1</span>
+        <div class="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-right" :title="`우리학교 수능최저 지원 ${schoolMinScoreStats.totalMinApps}건 실측 통계\n• 전체 (논술포함): 최초 ${schoolMinScoreStats.avgInitialRate}:1 ➔ 실질 ${schoolMinScoreStats.avgRealRate}:1 (체감 ${schoolMinScoreStats.avgEffectiveRate}:1)\n• 학생부교과 (${schoolMinScoreStats.gpaCount}건): 최초 ${schoolMinScoreStats.gpaInitialRate}:1 ➔ 실질 ${schoolMinScoreStats.gpaRealRate}:1 (체감 ${schoolMinScoreStats.gpaEffectiveRate}:1)`">
+          <span class="text-[10px] text-blue-800 block font-semibold">최저 실질경쟁률</span>
+          <span class="text-sm font-black text-blue-700 font-mono">
+            <template v-if="isLoadingYearData && (!schoolMinScoreStats.totalMinApps || schoolMinScoreStats.totalMinApps === 0)">
+              <span class="text-xs text-blue-600 font-medium">분석 중...</span>
+            </template>
+            <template v-else-if="schoolMinScoreStats.totalMinApps > 0 && schoolMinScoreStats.avgInitialRate !== '-'">
+              {{ schoolMinScoreStats.avgInitialRate }}:1 ➔ {{ schoolMinScoreStats.avgRealRate }}:1
+            </template>
+            <template v-else>
+              -
+            </template>
+          </span>
         </div>
       </div>
     </div>
 
     <!-- Modern Integrated Segmented Control (세련된 세그먼트 탭 점프 내비게이션 바) -->
-    <div class="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-3 -mx-6 sm:-mx-7 px-6 sm:px-7 border-b border-slate-100 shadow-2xs">
+    <div ref="stickyNavRef" class="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-3 -mx-6 sm:-mx-7 px-6 sm:px-7 border-b border-slate-100 shadow-2xs">
       <div class="flex items-center justify-between gap-2 overflow-x-auto">
         <div class="inline-flex p-1 rounded-2xl bg-slate-100/90 border border-slate-200/80 shadow-2xs gap-1 max-w-full">
           <button
@@ -69,7 +89,7 @@
       <div class="flex items-center justify-between pb-1">
         <div class="flex items-center gap-2">
           <span class="flex items-center justify-center w-7 h-7 rounded-xl bg-blue-50 text-blue-700 text-sm font-black border border-blue-200">1</span>
-          <h3 class="text-base sm:text-lg font-black text-slate-900 m-0">과목별 내신 vs 수능 등급 비교</h3>
+          <h3 class="text-base sm:text-lg font-black text-slate-900 m-0">과목별 내신 vs {{ examTerm }} 등급 비교</h3>
         </div>
         <span class="text-xs text-slate-400 font-medium hidden sm:inline">5개 영역 방사형 등급 격차 및 수시 4대 기본 지표</span>
       </div>
@@ -81,7 +101,7 @@
             <div>
               <div class="text-sm font-black text-slate-900 flex items-center gap-1.5">
                 <span>📊</span>
-                <span>과목별 내신 vs 수능 등급 비교</span>
+                <span>과목별 내신 vs {{ examTerm }} 등급 비교</span>
               </div>
               <p class="text-[11px] text-slate-500 m-0 mt-0.5">
                 바깥쪽일수록 상위 등급(1등급)이며, 안쪽일수록 하위 등급(9등급)입니다.
@@ -98,7 +118,7 @@
           </div>
 
           <!-- Radar Chart Container -->
-          <div class="h-[340px] sm:h-[370px] relative flex items-center justify-center my-2">
+          <div class="h-85 sm:h-92.5 relative flex items-center justify-center my-2">
             <Radar :data="radarChartData" :options="radarChartOptions" />
           </div>
 
@@ -109,105 +129,559 @@
           </div>
         </div>
 
-        <!-- Right: 주요 영역별 수능/모의고사 선택과목 통계 테이블 & 미적/확통, 언매/화작 격차 -->
-        <div class="lg:col-span-6 flex flex-col gap-4">
-          <!-- 언어 / 수리 / 외국어 상세 요약 카드 -->
-          <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
-            <div class="flex items-center justify-between mb-3">
-              <h4 class="text-sm font-black text-slate-900 m-0 flex items-center gap-1.5">
-                <span>📝</span>
-                <span>{{ currentSatAnalysis.isCsat ? '수능' : '모의고사' }} 주요 영역 응시자 수 및 평균 등급</span>
-              </h4>
-              <span class="text-[11px] text-slate-500 font-mono">{{ currentSatAnalysis.subText }}</span>
+        <!-- Right: 주요 영역별 수능/모의고사 5개 영역(국/수/영/사/과) 선택과목 및 평균 등급 -->
+        <div class="lg:col-span-6 flex flex-col justify-between">
+          <!-- 5대 영역 상세 요약 카드 & 선택과목 인포그래픽 -->
+          <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs space-y-3.5 h-full flex flex-col justify-between">
+            <!-- Header: 제목 & 회차 드롭다운 (검은 박스선 제거 및 화살표 겹침 없는 넉넉한 폭) -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h4 class="text-sm font-black text-slate-900 m-0 flex items-center gap-1.5">
+                  <span>📝</span>
+                  <span>{{ currentSatAnalysis.isCsat ? '수능' : '모의고사' }} 주요 영역 응시자 수 및 평균 등급</span>
+                </h4>
+              </div>
+
+              <!-- 우측 모의고사 회차 드롭다운 선택기 -->
+              <div class="relative inline-flex items-center self-start sm:self-auto">
+                <label for="mock-exam-month-select" class="text-xs font-bold text-slate-500 mr-2 shrink-0">회차:</label>
+                <div class="relative">
+                  <select
+                    id="mock-exam-month-select"
+                    v-model="selectedMockExamMonth"
+                    class="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-1.5 pr-8 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer min-w-60"
+                  >
+                    <option value="ALL">🌟 {{ hasCsatData ? '전체 (수능 실채점)' : '전체 (3~10월 통합)' }}{{ currentSatAnalysis.studentCount > 0 ? ` - ${currentSatAnalysis.studentCount}명` : ' (데이터 미등록)' }}</option>
+                    <option
+                      v-for="opt in availableExamMonthOptions"
+                      :key="opt.key"
+                      :value="opt.key"
+                    >
+                      📅 {{ opt.displayLabel }}
+                    </option>
+                  </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr class="bg-slate-100/80 text-slate-700 font-bold border-y border-slate-200">
-                    <th class="p-2.5">영역</th>
-                    <th class="p-2.5">구분</th>
-                    <th class="p-2.5 text-center">응시 인원</th>
-                    <th class="p-2.5 text-center">평균 등급</th>
-                    <th class="p-2.5">특징 및 최저 충족 유불리</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-medium">
-                  <!-- 국어 -->
-                  <tr>
-                    <td rowspan="3" class="p-2.5 font-bold text-slate-900 bg-slate-50/50 border-r border-slate-100">
-                      국어
-                    </td>
-                    <td class="p-2 text-slate-600 font-semibold">전체</td>
-                    <td class="p-2 text-center font-mono font-bold text-slate-800">{{ currentSatAnalysis.subjectsDetail.kor.totalCount }}명</td>
-                    <td class="p-2 text-center font-mono font-bold text-slate-800">{{ currentSatAnalysis.subjectsDetail.kor.totalAvg }}</td>
-                    <td class="p-2 text-[11px] text-slate-500">내신({{ currentGpaRaw[0] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.kor.totalAvg) - currentGpaRaw[0]).toFixed(2) }}등급 차이</td>
-                  </tr>
-                  <tr class="bg-blue-50/30">
-                    <td class="p-2 text-blue-700 font-bold">언어와 매체</td>
-                    <td class="p-2 text-center font-mono font-bold text-blue-700">{{ currentSatAnalysis.subjectsDetail.kor.unmaeCount }}명</td>
-                    <td class="p-2 text-center font-mono font-bold text-blue-700">{{ currentSatAnalysis.subjectsDetail.kor.unmaeAvg }}</td>
-                    <td class="p-2 text-[11px] text-blue-800 font-semibold">화작 대비 최저 충족 주력 영역</td>
-                  </tr>
-                  <tr>
-                    <td class="p-2 text-slate-600">화법과 작문</td>
-                    <td class="p-2 text-center font-mono text-slate-700">{{ currentSatAnalysis.subjectsDetail.kor.hwajakCount }}명</td>
-                    <td class="p-2 text-center font-mono text-slate-700">{{ currentSatAnalysis.subjectsDetail.kor.hwajakAvg }}</td>
-                    <td class="p-2 text-[11px] text-slate-500">다수 학생 응시 영역</td>
-                  </tr>
+            <!-- 시각화 인포그래픽 카드 5종 (1열: 국어 & 수학 / 2열: 영어 단독 슬림 / 3열: 사회탐구 & 과학탐구) -->
+            <div class="space-y-3 flex-1 flex flex-col justify-between">
+              <!-- 1열: 국어 영역 & 수학 영역 (2열 그리드) -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- 국어 영역 카드 -->
+                <div class="bg-linear-to-br from-blue-50/70 to-slate-50 p-4 rounded-2xl border border-blue-100 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-xs font-black text-blue-900 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                        <span>국어 영역</span>
+                      </span>
+                      <span class="text-[11px] font-mono text-slate-500">{{ currentSatAnalysis.subjectsDetail.kor.totalCount }}명 응시</span>
+                    </div>
+                    <div class="flex items-baseline gap-2 mb-2">
+                      <span class="text-2xl font-black text-slate-900 font-mono">{{ currentSatAnalysis.subjectsDetail.kor.totalAvg }}<span class="text-xs font-normal text-slate-500">등급</span></span>
+                      <span v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.kor.totalAvg !== '-'" class="text-[11px] font-semibold text-rose-600">
+                        내신({{ currentGpaRaw[0] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.kor.totalAvg) - currentGpaRaw[0]).toFixed(2) }}↓
+                      </span>
+                      <span v-else class="text-[11px] text-slate-400 font-medium">
+                        데이터 미등록
+                      </span>
+                    </div>
 
-                  <!-- 수학 -->
-                  <tr class="border-t border-slate-200">
-                    <td rowspan="3" class="p-2.5 font-bold text-slate-900 bg-slate-50/50 border-r border-slate-100">
-                      수학
-                    </td>
-                    <td class="p-2 text-slate-600 font-semibold">전체</td>
-                    <td class="p-2 text-center font-mono font-bold text-slate-800">{{ currentSatAnalysis.subjectsDetail.math.totalCount }}명</td>
-                    <td class="p-2 text-center font-mono font-bold text-slate-800">{{ currentSatAnalysis.subjectsDetail.math.totalAvg }}</td>
-                    <td class="p-2 text-[11px] text-slate-500">내신({{ currentGpaRaw[1] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.math.totalAvg) - currentGpaRaw[1]).toFixed(2) }}등급 차이</td>
-                  </tr>
-                  <tr class="bg-indigo-50/40">
-                    <td class="p-2 text-indigo-700 font-bold">미적분/기하</td>
-                    <td class="p-2 text-center font-mono font-bold text-indigo-700">{{ currentSatAnalysis.subjectsDetail.math.mijukCount }}명</td>
-                    <td class="p-2 text-center font-mono font-bold text-indigo-700">{{ currentSatAnalysis.subjectsDetail.math.mijukAvg }}</td>
-                    <td class="p-2 text-[11px] text-indigo-800 font-semibold">확통 대비 우세 성향 유지</td>
-                  </tr>
-                  <tr>
-                    <td class="p-2 text-slate-600">확률과 통계</td>
-                    <td class="p-2 text-center font-mono text-slate-700">{{ currentSatAnalysis.subjectsDetail.math.hwaktongCount }}명</td>
-                    <td class="p-2 text-center font-mono text-slate-700">{{ currentSatAnalysis.subjectsDetail.math.hwaktongAvg }}</td>
-                    <td class="p-2 text-[11px] text-slate-500">인문계열 주요 선택 영역</td>
-                  </tr>
+                    <!-- 1~9 등급 수직선 위치 마커 (직관적 포인터 핀) -->
+                    <div class="relative pt-1 pb-2">
+                      <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+                      <div class="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
+                        <span>1등급(우수)</span>
+                        <span>5등급</span>
+                        <span>9등급</span>
+                      </div>
+                      <!-- 현재 등급 위치 핀 -->
+                      <div
+                        v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.kor.totalAvg !== '-'"
+                        class="absolute top-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                        :style="{ left: getRankMarkerLeft(currentSatAnalysis.subjectsDetail.kor.totalAvg) }"
+                      >
+                        <span class="w-3 h-3 rounded-full bg-blue-600 border-2 border-white shadow-xs"></span>
+                      </div>
+                    </div>
+                  </div>
 
-                  <!-- 영어 -->
-                  <tr class="border-t border-slate-200">
-                    <td class="p-2.5 font-bold text-slate-900 bg-slate-50/50 border-r border-slate-100">
-                      영어
-                    </td>
-                    <td class="p-2 text-emerald-700 font-bold">절대평가</td>
-                    <td class="p-2 text-center font-mono font-bold text-emerald-700">{{ currentSatAnalysis.subjectsDetail.eng.totalCount }}명</td>
-                    <td class="p-2 text-center font-mono font-bold text-emerald-700">{{ currentSatAnalysis.subjectsDetail.eng.totalAvg }}</td>
-                    <td class="p-2 text-[11px] text-emerald-800 font-semibold">수능 최저의 핵심 전략 영역</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  <!-- 국어 선택과목 (언어와 매체 vs 화법과 작문 줄바꿈 분리 카드) -->
+                  <div class="pt-2.5 border-t border-blue-100/80 space-y-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <!-- 언어와 매체 -->
+                      <div class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-blue-200/80 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-blue-950 truncate pb-1 border-b border-blue-100/60">
+                          <span class="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0"></span>
+                          <span class="truncate">언어와 매체</span>
+                        </div>
+                        <div class="pt-1.5 text-center">
+                          <span class="font-mono text-sm font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 whitespace-nowrap inline-block">
+                            {{ currentSatAnalysis.subjectsDetail.kor.unmaeAvg }}등급
+                          </span>
+                        </div>
+                        <div class="text-center pt-0.5">
+                          <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ currentSatAnalysis.subjectsDetail.kor.unmaeCount }}명)</span>
+                        </div>
+                      </div>
+                      <!-- 화법과 작문 -->
+                      <div class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800 truncate pb-1 border-b border-slate-100">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                          <span class="truncate">화법과 작문</span>
+                        </div>
+                        <div class="pt-1.5 text-center">
+                          <span class="font-mono text-sm font-black text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap inline-block">
+                            {{ currentSatAnalysis.subjectsDetail.kor.hwajakAvg }}등급
+                          </span>
+                        </div>
+                        <div class="text-center pt-0.5">
+                          <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ currentSatAnalysis.subjectsDetail.kor.hwajakCount }}명)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- 언매 vs 화작 격차 배지 -->
+                    <div v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.kor.unmaeAvg !== '-' && currentSatAnalysis.subjectsDetail.kor.hwajakAvg !== '-'" class="text-[10.5px] font-extrabold text-blue-900 bg-blue-50/80 border border-blue-200/70 rounded-lg py-1 px-2 text-center">
+                      ⚡ 언매가 화작 대비 <span class="text-blue-600 underline font-black">{{ (Number(currentSatAnalysis.subjectsDetail.kor.hwajakAvg) - Number(currentSatAnalysis.subjectsDetail.kor.unmaeAvg)).toFixed(2) }}등급</span> 우세
+                    </div>
+                  </div>
+                </div>
 
-          <!-- 과목별 비교 바 차트 -->
-          <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
-            <h4 class="text-sm font-black text-slate-900 mb-2 flex items-center justify-between">
-              <span>선택과목별 등급 격차 시각화</span>
-              <span class="text-[11px] text-slate-500 font-normal">낮을수록 우수 (1등급 기준)</span>
-            </h4>
-            <div class="h-36">
-              <Bar :data="subjectComparisonBarData" :options="subjectBarOptions" />
+                <!-- 수학 영역 카드 (미적분/기하 vs 확률과 통계 줄바꿈 분리 카드) -->
+                <div class="bg-linear-to-br from-indigo-50/70 to-slate-50 p-4 rounded-2xl border border-indigo-100 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-xs font-black text-indigo-900 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                        <span>수학 영역</span>
+                      </span>
+                      <span class="text-[11px] font-mono text-slate-500">{{ currentSatAnalysis.subjectsDetail.math.totalCount }}명 응시</span>
+                    </div>
+                    <div class="flex items-baseline gap-2 mb-2">
+                      <span class="text-2xl font-black text-slate-900 font-mono">{{ currentSatAnalysis.subjectsDetail.math.totalAvg }}<span class="text-xs font-normal text-slate-500">등급</span></span>
+                      <span v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.math.totalAvg !== '-'" class="text-[11px] font-semibold text-rose-600">
+                        내신({{ currentGpaRaw[1] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.math.totalAvg) - currentGpaRaw[1]).toFixed(2) }}↓
+                      </span>
+                      <span v-else class="text-[11px] text-slate-400 font-medium">
+                        데이터 미등록
+                      </span>
+                    </div>
+
+                    <!-- 1~9 등급 수직선 위치 마커 -->
+                    <div class="relative pt-1 pb-2">
+                      <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+                      <div class="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
+                        <span>1등급(우수)</span>
+                        <span>5등급</span>
+                        <span>9등급</span>
+                      </div>
+                      <!-- 현재 등급 위치 핀 -->
+                      <div
+                        v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.math.totalAvg !== '-'"
+                        class="absolute top-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                        :style="{ left: getRankMarkerLeft(currentSatAnalysis.subjectsDetail.math.totalAvg) }"
+                      >
+                        <span class="w-3 h-3 rounded-full bg-indigo-600 border-2 border-white shadow-xs"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 수학 선택과목 (미적분/기하 vs 확률과 통계) -->
+                  <div class="pt-2.5 border-t border-indigo-100/80 space-y-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <!-- 1. 미적분/기하 독립 카드 -->
+                      <div class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-indigo-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-950 truncate pb-1 border-b border-indigo-100/60">
+                          <span class="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></span>
+                          <span class="truncate">미적분/기하</span>
+                        </div>
+                        <div class="pt-1.5 text-center">
+                          <span class="font-mono text-sm font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 whitespace-nowrap inline-block">
+                            {{ currentSatAnalysis.subjectsDetail.math.mijukAvg }}등급
+                          </span>
+                        </div>
+                        <div class="text-center pt-0.5">
+                          <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ currentSatAnalysis.subjectsDetail.math.mijukCount }}명)</span>
+                        </div>
+                      </div>
+
+                      <!-- 2. 확률과 통계 독립 카드 -->
+                      <div class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-slate-800 truncate pb-1 border-b border-slate-100">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                          <span class="truncate">확률과 통계</span>
+                        </div>
+                        <div class="pt-1.5 text-center">
+                          <span class="font-mono text-sm font-black text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap inline-block">
+                            {{ currentSatAnalysis.subjectsDetail.math.hwaktongAvg }}등급
+                          </span>
+                        </div>
+                        <div class="text-center pt-0.5">
+                          <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ currentSatAnalysis.subjectsDetail.math.hwaktongCount }}명)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 직관적 격차 배지 -->
+                    <div v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.math.mijukAvg !== '-' && currentSatAnalysis.subjectsDetail.math.hwaktongAvg !== '-'" class="text-[10.5px] font-extrabold text-indigo-800 bg-indigo-50/80 border border-indigo-200/70 rounded-lg py-1 px-2 text-center">
+                      ⚡ 미적분이 확통 대비 <span class="text-indigo-600 underline font-black">{{ (Number(currentSatAnalysis.subjectsDetail.math.hwaktongAvg) - Number(currentSatAnalysis.subjectsDetail.math.mijukAvg)).toFixed(2) }}등급</span> 우세
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2열: 영어 영역 (좌측 등급/슬라이더 5 : 우측 전략 카드 7 비율 배치로 1줄 정렬 완벽 보장) -->
+              <div class="bg-linear-to-br from-emerald-50/70 to-slate-50 p-3.5 sm:p-4 rounded-2xl border border-emerald-100 shadow-2xs">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
+                  <!-- 좌측: 등급 & 슬라이더 표시 (좌측 폭 최적화: 5/12) -->
+                  <div class="sm:col-span-5 space-y-1.5">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        <span>영어 영역</span>
+                        <span class="text-[10px] font-mono text-emerald-800 font-extrabold bg-emerald-100/90 px-1.5 py-0.2 rounded-full border border-emerald-200/60">절대평가</span>
+                      </span>
+                      <span class="text-[11px] font-mono text-slate-500">{{ currentSatAnalysis.subjectsDetail.eng.totalCount }}명 응시</span>
+                    </div>
+
+                    <div class="flex items-baseline gap-2">
+                      <span class="text-2xl font-black text-slate-900 font-mono tracking-tight">{{ currentSatAnalysis.subjectsDetail.eng.totalAvg }}<span class="text-xs font-normal text-slate-500">등급</span></span>
+                      <span v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.eng.totalAvg !== '-' && currentGpaRaw[2]" class="text-[11px] font-semibold text-rose-600 whitespace-nowrap">
+                        내신({{ currentGpaRaw[2] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.eng.totalAvg) - currentGpaRaw[2]).toFixed(2) }}↓
+                      </span>
+                      <span v-else class="text-[11px] text-slate-400 font-medium">데이터 미등록</span>
+                    </div>
+
+                    <!-- 1~9 등급 수직선 위치 마커 -->
+                    <div class="relative pt-1 pb-1">
+                      <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+                      <div class="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
+                        <span class="whitespace-nowrap">1등급(우수)</span>
+                        <span class="whitespace-nowrap">5등급</span>
+                        <span class="whitespace-nowrap">9등급</span>
+                      </div>
+                      <!-- 현재 등급 위치 핀 -->
+                      <div
+                        v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.eng.totalAvg !== '-'"
+                        class="absolute top-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                        :style="{ left: getRankMarkerLeft(currentSatAnalysis.subjectsDetail.eng.totalAvg) }"
+                      >
+                        <span class="w-3 h-3 rounded-full bg-emerald-600 border-2 border-white shadow-xs"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 우측: 수능 최저 핵심 전략 & 등급컷 안내 카드 (우측 폭 확대: 7/12, 1줄 레이아웃 보장) -->
+                  <div class="sm:col-span-7 bg-white/95 p-3 rounded-xl border border-emerald-200/80 shadow-2xs flex flex-col justify-between space-y-1.5">
+                    <div class="flex items-center justify-between gap-1.5">
+                      <span class="text-xs font-bold text-emerald-950 flex items-center gap-1.5 min-w-0">
+                        <span class="text-sm shrink-0">🎯</span>
+                        <span class="whitespace-nowrap font-extrabold">수능 최저의 핵심 전략 영역</span>
+                      </span>
+                      <span class="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 whitespace-nowrap shrink-0">절대평가 활용</span>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed font-medium m-0">
+                      상대평가(6등급대) 부담 없이 <span class="font-bold text-emerald-700">2~3등급 안정 확보</span> 시 수시 최저 충족 성공률이 급상승합니다.
+                    </p>
+                    <div class="text-[10.5px] text-slate-400 font-mono pt-1.5 border-t border-slate-100 flex items-center justify-between">
+                      <span>90점↑ 1등급</span>
+                      <span class="text-slate-300">·</span>
+                      <span>80점↑ 2등급</span>
+                      <span class="text-slate-300">·</span>
+                      <span>70점↑ 3등급</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3열: 사회탐구 & 과학탐구 (2열 그리드) -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- 사회탐구 영역 카드 -->
+                <div class="bg-linear-to-br from-amber-50/70 to-slate-50 p-4 rounded-2xl border border-amber-200/80 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-xs font-black text-amber-900 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>사회탐구 영역</span>
+                      </span>
+                      <span class="text-[11px] font-mono text-slate-500">{{ currentSatAnalysis.subjectsDetail.soc?.totalCount || 0 }}명 응시</span>
+                    </div>
+                    <div class="flex items-baseline gap-2 mb-2">
+                      <span class="text-2xl font-black text-slate-900 font-mono">{{ currentSatAnalysis.subjectsDetail.soc?.totalAvg || '-' }}<span class="text-xs font-normal text-slate-500">등급</span></span>
+                      <span v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.soc?.totalAvg !== '-' && currentGpaRaw[3]" class="text-[11px] font-semibold text-rose-600">
+                        내신({{ currentGpaRaw[3] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.soc.totalAvg) - currentGpaRaw[3]).toFixed(2) }}↓
+                      </span>
+                      <span v-else class="text-[11px] text-slate-400 font-medium">
+                        {{ currentSatAnalysis.hasRealData ? '응시 집계' : '데이터 미등록' }}
+                      </span>
+                    </div>
+
+                    <!-- 1~9 등급 수직선 위치 마커 -->
+                    <div class="relative pt-1 pb-2">
+                      <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+                      <div class="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
+                        <span>1등급(우수)</span>
+                        <span>5등급</span>
+                        <span>9등급</span>
+                      </div>
+                      <!-- 현재 등급 위치 핀 -->
+                      <div
+                        v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.soc?.totalAvg !== '-'"
+                        class="absolute top-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                        :style="{ left: getRankMarkerLeft(currentSatAnalysis.subjectsDetail.soc.totalAvg) }"
+                      >
+                        <span class="w-3 h-3 rounded-full bg-amber-500 border-2 border-white shadow-xs"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 사탐 선택과목 상위 2개 (과목명과 인원/등급 줄바꿈 분리 카드) & 전략 배너 -->
+                  <div class="pt-2.5 border-t border-amber-100/90 space-y-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <template v-if="currentSatAnalysis.subjectsDetail.soc?.topSubjects?.length">
+                        <div
+                          v-for="(sub, sIdx) in currentSatAnalysis.subjectsDetail.soc.topSubjects.slice(0, 2)"
+                          :key="sub.name"
+                          class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col justify-between"
+                        >
+                          <!-- 1줄: 과목명 (여유롭게 전체 표시) -->
+                          <div class="flex items-center gap-1.5 text-xs font-bold text-amber-950 truncate pb-1 border-b border-amber-100/60">
+                            <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="sIdx === 0 ? 'bg-amber-600' : 'bg-slate-400'"></span>
+                            <span class="truncate">{{ sub.name }}</span>
+                          </div>
+                          <!-- 2줄: 평균 등급 (윗줄) -->
+                          <div class="pt-1.5 text-center">
+                            <span class="font-mono text-sm font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 whitespace-nowrap inline-block">
+                              {{ sub.avg }}등급
+                            </span>
+                          </div>
+                          <!-- 3줄: 인원수 (아래줄) -->
+                          <div class="text-center pt-0.5">
+                            <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ sub.count }}명)</span>
+                          </div>
+                        </div>
+                      </template>
+                      <div v-else class="col-span-2 text-center text-[10.5px] text-slate-400 py-1 bg-white/60 rounded-lg">
+                        세부 과목 데이터 집계 중
+                      </div>
+                    </div>
+                    <!-- 사탐 최저 전략 팁 배너 -->
+                    <div class="text-[10.5px] font-bold text-amber-900 bg-amber-100/60 border border-amber-200/70 rounded-lg py-1 px-2 flex items-center justify-between">
+                      <span class="flex items-center gap-1">
+                        <span>🏃</span>
+                        <span>자연계 사탐런 전향자의 수능최저 핵심 전략 영역</span>
+                      </span>
+                      <span class="text-[10px] font-extrabold text-amber-700 shrink-0">사문·생윤 집중</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 과학탐구 영역 카드 -->
+                <div class="bg-linear-to-br from-purple-50/70 to-slate-50 p-4 rounded-2xl border border-purple-200/80 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-xs font-black text-purple-900 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-purple-600"></span>
+                        <span>과학탐구 영역</span>
+                      </span>
+                      <span class="text-[11px] font-mono text-slate-500">{{ currentSatAnalysis.subjectsDetail.sci?.totalCount || 0 }}명 응시</span>
+                    </div>
+                    <div class="flex items-baseline gap-2 mb-2">
+                      <span class="text-2xl font-black text-slate-900 font-mono">{{ currentSatAnalysis.subjectsDetail.sci?.totalAvg || '-' }}<span class="text-xs font-normal text-slate-500">등급</span></span>
+                      <span v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.sci?.totalAvg !== '-' && currentGpaRaw[4]" class="text-[11px] font-semibold text-rose-600">
+                        내신({{ currentGpaRaw[4] }}) 대비 {{ (Number(currentSatAnalysis.subjectsDetail.sci.totalAvg) - currentGpaRaw[4]).toFixed(2) }}↓
+                      </span>
+                      <span v-else class="text-[11px] text-slate-400 font-medium">
+                        {{ currentSatAnalysis.hasRealData ? '응시 집계' : '데이터 미등록' }}
+                      </span>
+                    </div>
+
+                    <!-- 1~9 등급 수직선 위치 마커 -->
+                    <div class="relative pt-1 pb-2">
+                      <div class="h-1.5 w-full bg-slate-200 rounded-full"></div>
+                      <div class="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
+                        <span>1등급(우수)</span>
+                        <span>5등급</span>
+                        <span>9등급</span>
+                      </div>
+                      <!-- 현재 등급 위치 핀 -->
+                      <div
+                        v-if="currentSatAnalysis.hasRealData && currentSatAnalysis.subjectsDetail.sci?.totalAvg !== '-'"
+                        class="absolute top-0 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                        :style="{ left: getRankMarkerLeft(currentSatAnalysis.subjectsDetail.sci.totalAvg) }"
+                      >
+                        <span class="w-3 h-3 rounded-full bg-purple-600 border-2 border-white shadow-xs"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 과탐 선택과목 상위 2개 (과목명과 인원/등급 줄바꿈 분리 카드) & 전략 배너 -->
+                  <div class="pt-2.5 border-t border-purple-100/90 space-y-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <template v-if="currentSatAnalysis.subjectsDetail.sci?.topSubjects?.length">
+                        <div
+                          v-for="(sub, sIdx) in currentSatAnalysis.subjectsDetail.sci.topSubjects.slice(0, 2)"
+                          :key="sub.name"
+                          class="bg-white/95 px-2.5 py-1.5 rounded-xl border border-purple-200/80 shadow-2xs flex flex-col justify-between"
+                        >
+                          <!-- 1줄: 과목명 (여유롭게 전체 표시) -->
+                          <div class="flex items-center gap-1.5 text-xs font-bold text-purple-950 truncate pb-1 border-b border-purple-100/60">
+                            <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="sIdx === 0 ? 'bg-purple-600' : 'bg-slate-400'"></span>
+                            <span class="truncate">{{ sub.name }}</span>
+                          </div>
+                          <!-- 2줄: 평균 등급 (윗줄) -->
+                          <div class="pt-1.5 text-center">
+                            <span class="font-mono text-sm font-black text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 whitespace-nowrap inline-block">
+                              {{ sub.avg }}등급
+                            </span>
+                          </div>
+                          <!-- 3줄: 인원수 (아래줄) -->
+                          <div class="text-center pt-0.5">
+                            <span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">({{ sub.count }}명)</span>
+                          </div>
+                        </div>
+                      </template>
+                      <div v-else class="col-span-2 text-center text-[10.5px] text-slate-400 py-1 bg-white/60 rounded-lg">
+                        세부 과목 데이터 집계 중
+                      </div>
+                    </div>
+                    <!-- 과탐 최저 전략 팁 배너 -->
+                    <div class="text-[10.5px] font-bold text-purple-900 bg-purple-100/60 border border-purple-200/70 rounded-lg py-1 px-2 flex items-center justify-between">
+                      <span class="flex items-center gap-1">
+                        <span>🔬</span>
+                        <span>의약학·상위권 이공계열 필수 반영 영역</span>
+                      </span>
+                      <span class="text-[10px] font-extrabold text-purple-700 shrink-0">생Ⅰ·지Ⅰ 중심</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 1번에 속하는 수시 지원 4대 기본 현황 차트 슬롯 (전형유형, 지역분포, 학급현황, 계열비중) -->
+      <!-- 신규: 2027 모의고사 월별 성적 추이 (3월 ➔ 10월) 라인 차트 -->
+      <div class="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200">📈</span>
+              <h4 class="text-base font-black text-slate-900 m-0">{{ academicYearLabel }} 모의고사 회차별 성적 추이 (3월 ➔ 10월)</h4>
+            </div>
+            <p class="text-xs text-slate-500 m-0 mt-1">
+              {{ hasCsatData ? '3월~10월 모의고사 및 수능 실채점에 따른' : '3월·5월·6월·7월·9월·10월 모의고사 회차에 따른' }} 영역별 평균 등급과 응시 인원수 변화 추이를 종합 분석합니다.
+            </p>
+          </div>
+
+          <!-- 상단 조절 바: 추이 보기 모드 및 밀집구간 줌 토글 -->
+          <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <!-- 줌 토글 버튼 (등급 보기 모드일 때만 표시) -->
+            <button
+              v-if="mockTrendViewMode !== 'COUNT'"
+              type="button"
+              @click="isGradeZoomed = !isGradeZoomed"
+              :class="[
+                'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer',
+                isGradeZoomed
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs hover:bg-amber-100'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              ]"
+              :title="isGradeZoomed ? `${trendDynamicYRange.label} 데이터 밀집 구간 자동 최적화` : '전체 1~9등급 기본 스케일'"
+            >
+              <span>{{ isGradeZoomed ? `🔍 ${trendDynamicYRange.label} 집중 확대` : '🔎 전체 1~9등급' }}</span>
+              <span :class="['text-[10px] px-1.5 py-0.5 rounded-md font-extrabold', isGradeZoomed ? 'bg-amber-200 text-amber-800' : 'bg-slate-100 text-slate-500']">
+                {{ isGradeZoomed ? 'ON' : 'OFF' }}
+              </span>
+            </button>
+
+            <!-- 추이 보기 모드 탭 (선택과목 분리 / 5개영역 통합 / 응시 인원수) -->
+            <div class="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200 text-xs">
+              <button
+                type="button"
+                @click="mockTrendViewMode = 'SPLIT'"
+                :class="[
+                  'px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1',
+                  mockTrendViewMode === 'SPLIT' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                ]"
+              >
+                <span>⚡ 선택과목 분리</span>
+                <span class="text-[10px] px-1 py-0.2 rounded bg-indigo-50 text-indigo-600 font-extrabold hidden md:inline">추천</span>
+              </button>
+              <button
+                type="button"
+                @click="mockTrendViewMode = 'COMBINED'"
+                :class="[
+                  'px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                  mockTrendViewMode === 'COMBINED' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                ]"
+              >
+                📊 5개 영역 통합
+              </button>
+              <button
+                type="button"
+                @click="mockTrendViewMode = 'COUNT'"
+                :class="[
+                  'px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer',
+                  mockTrendViewMode === 'COUNT' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+                ]"
+              >
+                👥 응시자 수
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 라인 차트 컨테이너 -->
+        <div class="h-64 sm:h-72 w-full relative">
+          <Line :data="mockExamTrendChartData" :options="mockTrendChartOptions" />
+          <div
+            v-if="!hasMockData"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[1px] rounded-2xl pointer-events-none"
+          >
+            <div class="p-4 bg-white/95 rounded-2xl border border-slate-200/90 shadow-md text-center max-w-md mx-4">
+              <span class="text-2xl mb-1.5 block">📊</span>
+              <p class="text-sm font-extrabold text-slate-800 m-0">
+                {{ academicYearLabel }}학년도 모의고사 성적 데이터 미등록
+              </p>
+              <p class="text-xs text-slate-500 mt-1 mb-0 leading-relaxed">
+                {{ academicYearLabel }}학년도는 회차별 모의고사(3·5·6·7·9·10월) 성적 데이터가 시트에 등록되어 있지 않아 빈 그래프로 표시됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 추이 분석 핵심 인사이트 브리핑 바 -->
+        <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 leading-relaxed flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div class="flex items-start sm:items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0 mt-1 sm:mt-0"></span>
+            <div>
+              <span class="font-extrabold text-slate-900">💡 {{ hasMockData ? '모의고사 회차별 핵심 분석:' : `${academicYearLabel}학년도 성적 데이터 안내:` }}</span>
+              <span v-if="hasMockData" class="text-slate-600 ml-1">
+                <strong>수학 미적분/기하(4.3등급선)</strong>는 내신 평균({{ avgSchoolGpa }}등급선) 수준을 유지하는 반면, <strong>확률과통계(6.5등급선)</strong> 및 국어/탐구는 내신 대비 1.5등급 이상 하락합니다. 절대평가인 <strong>영어(5.4등급선)</strong>와 전략적 탐구 과목으로 수능 최저를 방어하는 전략이 필수적입니다.
+              </span>
+              <span v-else class="text-slate-600 ml-1">
+                {{ academicYearLabel }}학년도는 회차별 모의고사 성적 데이터가 등록되어 있지 않아 수시 지원 원자료({{ applications.length }}건)를 바탕으로 분석합니다.
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-[11px] font-mono text-slate-500 shrink-0 self-end md:self-auto">
+            <span class="inline-flex items-center gap-1 text-pink-600 font-bold">
+              <span class="w-3 border-t-2 border-pink-500 border-dashed inline-block"></span>
+              내신 평균 기준선({{ avgSchoolGpa }})
+            </span>
+            <span class="text-slate-300">|</span>
+            <span>Y축 반전: 위쪽이 상위 등급</span>
+          </div>
+        </div>
+      </div>
+<!-- 1번에 속하는 수시 지원 4대 기본 현황 차트 슬롯 (전형유형, 지역분포, 학급현황, 계열비중) -->
       <slot name="overview-charts"></slot>
     </div>
 
@@ -219,172 +693,58 @@
           <span class="flex items-center justify-center w-7 h-7 rounded-xl bg-pink-50 text-pink-700 text-sm font-black border border-pink-200">2</span>
           <h3 class="text-base sm:text-lg font-black text-slate-900 m-0">사탐런 & 탐구 응시 분석</h3>
         </div>
-        <span class="text-xs text-slate-400 font-medium hidden sm:inline">2027 모의고사 및 수시 가채점 연계 분석</span>
+        <span class="text-xs text-slate-400 font-medium hidden sm:inline">{{ satamAnalysisBadgeTitle }}</span>
       </div>
-      <!-- 상단 모드 전환 및 모의고사 분석 컨트롤 바 -->
-      <div class="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
-            <span class="text-xs font-black text-slate-800">사탐런 분석 모드:</span>
-            <div class="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200 text-xs">
-              <button
-                type="button"
-                @click="satamMode = 'OFFICIAL'"
-                :class="[
-                  'px-3 py-1 rounded-lg font-bold transition-all cursor-pointer',
-                  satamMode === 'OFFICIAL' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                ]"
-              >
-                📄 공식 보고서 기준
-              </button>
-              <button
-                type="button"
-                @click="satamMode = 'MOCK_ANALYSIS'"
-                :class="[
-                  'px-3 py-1 rounded-lg font-bold transition-all cursor-pointer',
-                  satamMode === 'MOCK_ANALYSIS' ? 'bg-orange-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                ]"
-              >
-                📊 모의고사 원자료 분석
-              </button>
-            </div>
-          </div>
-
-          <!-- 액션 버튼군 -->
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- 배포 구글 시트 2027가채점 실시간 연동 -->
-            <button
-              type="button"
-              @click="syncFromGoogleSheetMockData"
-              :disabled="isAnalyzingMock"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 transition-all cursor-pointer shadow-2xs"
-            >
-              <span>🌐</span>
-              <span v-if="isAnalyzingMock">가채점 시트 연동 중...</span>
-              <span v-else>배포 시트 '2027모의가채점' 연동</span>
-            </button>
-
-            <!-- 엑셀 파일 업로드 -->
-            <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 text-slate-700 hover:border-orange-500 hover:text-orange-600 transition-all cursor-pointer shadow-2xs">
-              <span>📁</span>
-              <span>모의고사 엑셀 분석 (.xlsx, .csv)</span>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                class="hidden"
-                @change="handleMockFileUpload"
-              />
-            </label>
-
-            <!-- 115명 실증 샘플 데이터 로드 -->
-            <button
-              type="button"
-              @click="loadSampleMockData"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 text-orange-800 hover:from-orange-100 hover:to-amber-100 transition-all cursor-pointer shadow-2xs"
-            >
-              <span>💡</span>
-              <span>115명 실증 샘플 로드</span>
-            </button>
-
-            <!-- 서식 및 로마자 표기 안내 팝오버 토글 -->
-            <button
-              type="button"
-              @click="showFormatGuide = !showFormatGuide"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
-            >
-              <span>ℹ️</span>
-              <span>표기·서식 안내</span>
-            </button>
-
-            <!-- 초기화 버튼 (분석 결과가 있을 때) -->
-            <button
-              v-if="mockStats"
-              type="button"
-              @click="resetMockAnalysis"
-              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition-all cursor-pointer"
-            >
-              <span>🔄</span>
-              <span>초기화</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- 에러 메시지 -->
-        <div v-if="mockAnalysisError" class="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2">
-          <span>⚠️</span>
-          <span>{{ mockAnalysisError }}</span>
-        </div>
-
-        <!-- 서식 & 로마자/숫자 표기 호환 안내 박스 -->
-        <div v-if="showFormatGuide" class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 space-y-2">
-          <div class="font-black text-amber-900 flex items-center gap-1.5 text-sm">
-            <span>🔍</span>
-            <span>사탐런 자동 판별 규칙 및 표기 호환 가이드</span>
-          </div>
-          <ul class="list-disc list-inside space-y-1 text-slate-700 pl-1">
-            <li>
-              <strong>자연계열(이과) 모수 선별:</strong> 3월부터 10월 모의고사 기간 중 <code>미적분</code>, <code>기하</code>, <code>과탐 8개 과목</code> 중 <strong>단 1개라도 응시한 이력</strong>이 있는 학생을 자동 추출합니다.
-            </li>
-            <li>
-              <strong>사탐런 판정 기준:</strong> 위 모수 학생 중 <strong>가장 마지막 모의고사(10월 학평 등)</strong>에서 사회탐구를 <strong>1과목(과탐1+사탐1)</strong> 또는 <strong>2과목(사탐2)</strong> 선택한 경우를 사탐런으로 집계합니다.
-            </li>
-            <li>
-              <strong>선택과목 표기 유연성 지원:</strong>
-              <span class="inline-block bg-white px-2 py-0.5 rounded border border-amber-200 font-mono text-[11px] text-amber-900 ml-1">
-                물리학Ⅰ, 물리학I, 물리학1, 물리1, 생명과학Ⅱ, 생명2, 지학I, 화학 Ⅱ 등
-              </span>
-              로마자(I, II), 로마자 특수문자(Ⅰ, Ⅱ), 숫자(1, 2) 및 공백, 축약명을 모두 100% 자동 정규화합니다.
-            </li>
-            <li>
-              <strong>지원 엑셀 서식:</strong> 시트별 탭 분리(‘3월’, ‘6월’, ‘10월’ 등) 또는 단일 시트 롱 포맷(시험명, 이름, 수학, 탐구1, 탐구2)을 모두 자동 지원합니다.
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- 사탐런 인포그래픽 상단 배너 (공식 vs 원자료 분석 동적 전환) -->
-      <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
+      <!-- 사탐런 인포그래픽 상단 배너 (단일 통합 분석) -->
+      <div class="bg-linear-to-r from-amber-500 via-orange-500 to-rose-500 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
         <div class="relative z-10">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white backdrop-blur-xs">
               <span>🚀</span>
-              <span v-if="satamMode === 'OFFICIAL'">2026학년도 대입 최대 이슈: 사탐런 (과탐 ➔ 사탐 전향)</span>
-              <span v-else>실시간 모의고사 원자료 분석: {{ mockFileName || '분석 대기 중' }}</span>
+              <span>자연계열 학생 사탐런(과탐 ➔ 사탐 전향) 실측 분석</span>
             </div>
-            <span v-if="satamMode === 'MOCK_ANALYSIS' && mockStats" class="text-xs font-bold bg-white/30 px-2.5 py-0.5 rounded-full backdrop-blur-xs">
-              자연계열 모수: {{ mockStats.naturalCohortCount }}명
-            </span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                class="text-xs font-bold bg-white/30 px-2.5 py-0.5 rounded-full backdrop-blur-xs flex items-center gap-1.5 cursor-help"
+                :title="`자연계열 모수 판정 원칙:\n1. 수시 6장 카드 중 실제 작성 카드에서 자연계열 학과가 33% 초과인 학생\n2. 수시 데이터가 없는 경우 3~10월 모의고사 중 미적/기하 또는 과탐 응시 이력 학생`"
+              >
+                <span>자연계열 모수: {{ effectiveSatamStats.naturalCohortCount }}명</span>
+                <span v-if="effectiveSatamStats.appsBasedCohortCount > 0" class="text-[11px] opacity-90 font-normal">
+                  (수시 기반 {{ effectiveSatamStats.appsBasedCohortCount }}명 / 모의 기반 {{ effectiveSatamStats.mockBasedCohortCount }}명)
+                </span>
+              </span>
+            </div>
           </div>
 
           <!-- 타이틀 -->
           <h3 class="text-xl sm:text-2xl font-black tracking-tight m-0">
-            <template v-if="satamMode === 'OFFICIAL' || !mockStats">
-              이과 수능 응시자 중 절반(48.7%)이 사탐으로 전향했습니다
+            <template v-if="(isLoadingMockExams || isLoadingYearData) && (!mockStats || effectiveSatamStats.naturalCohortCount === 0)">
+              자연계열 학생의 사탐 전향 현황을 분석 중입니다...
+            </template>
+            <template v-else-if="effectiveSatamStats.naturalCohortCount > 0">
+              자연계열 학생 중 {{ effectiveSatamStats.totalRunRate }}% ({{ effectiveSatamStats.totalRunCount }}명)가 사탐으로 전향했습니다
             </template>
             <template v-else>
-              자연계열 학생 중 {{ mockStats.totalRunRate }}% ({{ mockStats.totalRunCount }}명)가 사탐으로 전향했습니다
+              {{ academicYearLabel }}학년도 수시 지원 원자료 기준 탐구 응시 현황
             </template>
           </h3>
 
           <p class="text-xs text-white/90 mt-1.5 max-w-2xl leading-relaxed">
-            <template v-if="satamMode === 'OFFICIAL' || !mockStats">
-              자연계열 지망 학생(115명 추정) 중 무려 <strong>56명(48.7%)</strong>이 과탐의 극심한 내신/수능 등급 방어 부담을 덜기 위해 사회탐구로 과목을 전환했습니다.
-              이는 수능 최저학력기준 충족 확률을 비약적으로 끌어올리는 주효한 전략으로 작용했습니다.
+            <template v-if="effectiveSatamStats.naturalCohortCount > 0">
+              {{ hasMockData ? '전체 모의고사 중 미적/기하 또는 과탐 이력이 있는' : '수시 지원 카드 중 자연계열 학과를 지원한' }} 자연계열 학생 <strong>{{ effectiveSatamStats.naturalCohortCount }}명</strong> 중 <strong>{{ effectiveSatamStats.totalRunCount }}명({{ effectiveSatamStats.totalRunRate }}%)</strong>이 {{ examTerm }}에서 과탐의 극심한 등급 방어 부담을 덜고 수능 최저를 안정적으로 확보하기 위해 사탐 과목을 선택(사탐런)했습니다.
             </template>
             <template v-else>
-              3월~10월 모의고사 중 미적/기하/과탐 이력이 있는 자연계열 학생 <strong>{{ mockStats.naturalCohortCount }}명</strong> 중 <strong>{{ mockStats.totalRunCount }}명({{ mockStats.totalRunRate }}%)</strong>이 최종 모의고사에서 사탐 과목을 선택했습니다.
+              {{ academicYearLabel }}학년도는 회차별 모의고사 데이터 대신 수시 지원 결과({{ applications.length }}건) 및 과목별 탐구 응시 현황을 기준으로 분석합니다.
             </template>
           </p>
 
-          <!-- 3개/4개 통계 카드 그리드 -->
+          <!-- 4개 통계 카드 그리드 -->
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/20">
             <!-- 사탐런 전체 전향자 -->
             <div class="bg-white/10 rounded-2xl p-3 backdrop-blur-xs">
               <div class="text-[11px] text-white/80 font-semibold">사탐런 전체 전향자</div>
               <div class="text-2xl font-black font-mono">
-                <template v-if="satamMode === 'OFFICIAL' || !mockStats">56명 <span class="text-sm font-bold opacity-80">(48.7%)</span></template>
-                <template v-else>{{ mockStats.totalRunCount }}명 <span class="text-sm font-bold opacity-80">({{ mockStats.totalRunRate }}%)</span></template>
+                {{ effectiveSatamStats.totalRunCount }}명 <span class="text-sm font-bold opacity-80">({{ effectiveSatamStats.totalRunRate }}%)</span>
               </div>
               <div class="text-[10px] text-white/70 mt-0.5">이과생 중 전향 비율</div>
             </div>
@@ -393,8 +753,7 @@
             <div class="bg-white/10 rounded-2xl p-3 backdrop-blur-xs">
               <div class="text-[11px] text-white/80 font-semibold">1과목 전향 (과탐1 + 사탐1)</div>
               <div class="text-2xl font-black font-mono">
-                <template v-if="satamMode === 'OFFICIAL' || !mockStats">30명 <span class="text-sm font-bold opacity-80">(26.1%)</span></template>
-                <template v-else>{{ mockStats.run1Count }}명 <span class="text-sm font-bold opacity-80">({{ mockStats.run1Rate }}%)</span></template>
+                {{ effectiveSatamStats.run1Count }}명 <span class="text-sm font-bold opacity-80">({{ effectiveSatamStats.run1Rate }}%)</span>
               </div>
               <div class="text-[10px] text-white/70 mt-0.5">자연계 요건 유지 + 최저 확보</div>
             </div>
@@ -403,8 +762,7 @@
             <div class="bg-white/10 rounded-2xl p-3 backdrop-blur-xs">
               <div class="text-[11px] text-white/80 font-semibold">2과목 전향 (사탐2)</div>
               <div class="text-2xl font-black font-mono">
-                <template v-if="satamMode === 'OFFICIAL' || !mockStats">26명 <span class="text-sm font-bold opacity-80">(22.6%)</span></template>
-                <template v-else>{{ mockStats.run2Count }}명 <span class="text-sm font-bold opacity-80">({{ mockStats.run2Rate }}%)</span></template>
+                {{ effectiveSatamStats.run2Count }}명 <span class="text-sm font-bold opacity-80">({{ effectiveSatamStats.run2Rate }}%)</span>
               </div>
               <div class="text-[10px] text-white/70 mt-0.5">인문 교차지원 및 완전 최저 대비</div>
             </div>
@@ -413,8 +771,7 @@
             <div class="bg-white/10 rounded-2xl p-3 backdrop-blur-xs">
               <div class="text-[11px] text-white/80 font-semibold">과탐 유지 (과탐2)</div>
               <div class="text-2xl font-black font-mono">
-                <template v-if="satamMode === 'OFFICIAL' || !mockStats">59명 <span class="text-sm font-bold opacity-80">(51.3%)</span></template>
-                <template v-else>{{ mockStats.keptCount }}명 <span class="text-sm font-bold opacity-80">({{ mockStats.keptRate }}%)</span></template>
+                {{ effectiveSatamStats.keptCount }}명 <span class="text-sm font-bold opacity-80">({{ effectiveSatamStats.keptRate }}%)</span>
               </div>
               <div class="text-[10px] text-white/70 mt-0.5">정통 자연계열 과탐 고수</div>
             </div>
@@ -422,24 +779,24 @@
         </div>
       </div>
 
-      <!-- 모의고사 원자료 분석 모드: 학생별 전향 상세 내역 및 인기 사탐 과목 통계 -->
-      <div v-if="satamMode === 'MOCK_ANALYSIS' && mockStats" class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
+      <!-- 학생별 전향 상세 내역 및 인기 사탐 과목 통계 (학생 데이터 보유 시 상시 표시) -->
+      <div v-if="effectiveSatamStats.naturalCohort && effectiveSatamStats.naturalCohort.length > 0" class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h4 class="text-sm font-black text-slate-900 m-0 flex items-center gap-1.5">
               <span>👥</span>
-              <span>자연계열 학생별 3월 ➔ 최종(10월) 모의고사 응시 변화 내역</span>
+              <span>자연계열 학생별 3월 ➔ 최종({{ examTerm }}) 응시 변화 내역</span>
             </h4>
             <p class="text-[11px] text-slate-500 m-0 mt-0.5">
-              미적분/기하/과탐 이력 학생 {{ mockStats.naturalCohortCount }}명 전원의 탐구 과목 이동을 전수 추적한 결과입니다.
+              미적분/기하 또는 과탐 이력 학생 {{ effectiveSatamStats.naturalCohortCount }}명 전원의 탐구 과목 응시 현황을 전수 추적한 결과입니다.
             </p>
           </div>
 
           <!-- 인기 선택 사탐 배지 -->
-          <div v-if="mockStats.popularSocialSubjects.length > 0" class="flex flex-wrap items-center gap-1.5">
+          <div v-if="effectiveSatamStats.popularSocialSubjects && effectiveSatamStats.popularSocialSubjects.length > 0" class="flex flex-wrap items-center gap-1.5">
             <span class="text-[11px] text-slate-400 font-bold">인기 전향 사탐:</span>
             <span
-              v-for="subj in mockStats.popularSocialSubjects.slice(0, 3)"
+              v-for="subj in effectiveSatamStats.popularSocialSubjects.slice(0, 3)"
               :key="subj.name"
               class="px-2 py-0.5 rounded-lg bg-orange-50 text-orange-800 border border-orange-200 text-xs font-bold font-mono"
             >
@@ -459,7 +816,7 @@
                 studentFilter === 'ALL' ? 'bg-slate-900 text-white shadow-2xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               ]"
             >
-              전체 ({{ mockStats.naturalCohortCount }}명)
+              전체 ({{ effectiveSatamStats.naturalCohortCount }}명)
             </button>
             <button
               type="button"
@@ -469,7 +826,7 @@
                 studentFilter === 'RUN_ALL' ? 'bg-orange-600 text-white shadow-2xs' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
               ]"
             >
-              사탐런 전체 ({{ mockStats.totalRunCount }}명)
+              사탐런 전체 ({{ effectiveSatamStats.totalRunCount }}명)
             </button>
             <button
               type="button"
@@ -479,7 +836,7 @@
                 studentFilter === 'RUN_1' ? 'bg-amber-600 text-white shadow-2xs' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
               ]"
             >
-              1과목 사탐런 ({{ mockStats.run1Count }}명)
+              1과목 사탐런 ({{ effectiveSatamStats.run1Count }}명)
             </button>
             <button
               type="button"
@@ -489,7 +846,7 @@
                 studentFilter === 'RUN_2' ? 'bg-rose-600 text-white shadow-2xs' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
               ]"
             >
-              2과목 사탐런 ({{ mockStats.run2Count }}명)
+              2과목 사탐런 ({{ effectiveSatamStats.run2Count }}명)
             </button>
             <button
               type="button"
@@ -499,7 +856,7 @@
                 studentFilter === 'KEPT' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
               ]"
             >
-              과탐 유지 ({{ mockStats.keptCount }}명)
+              과탐 유지 ({{ effectiveSatamStats.keptCount }}명)
             </button>
           </div>
 
@@ -516,17 +873,19 @@
         </div>
 
         <!-- 학생 목록 테이블 -->
-        <div class="border border-slate-200 rounded-2xl overflow-hidden">
-          <div class="overflow-x-auto max-h-80">
+        <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+          <div class="overflow-x-auto max-h-84">
             <table class="w-full text-left text-xs border-collapse">
               <thead class="bg-slate-50 text-slate-600 sticky top-0 z-10 border-b border-slate-200 font-bold">
                 <tr>
                   <th class="p-3 w-16 text-center">반-번호</th>
                   <th class="p-3 w-24">이름</th>
+                  <th class="p-3 w-36">모수 분류 근거</th>
                   <th class="p-3">초기(3월) 응시 과목</th>
                   <th class="p-3">최종(10월) 응시 과목</th>
-                  <th class="p-3 w-32 text-center">전향 유형</th>
-                  <th class="p-3 w-40">선택한 사탐 과목</th>
+                  <th class="p-3 w-28 text-center">응시 추이</th>
+                  <th class="p-3 w-28 text-center">전향 유형</th>
+                  <th class="p-3 w-36">선택한 사탐 과목</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 font-sans">
@@ -539,7 +898,20 @@
                     {{ s.classNum ? `${s.classNum}반` : '' }} {{ s.studentNum ? `${s.studentNum}번` : '' }}
                   </td>
                   <td class="p-3 font-bold text-slate-900">
-                    {{ s.name }}
+                    {{ maskName(s.name) }}
+                  </td>
+                  <td class="p-3">
+                    <span
+                      :class="[
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border cursor-help shadow-2xs',
+                        s.cohortBadgeClass || 'bg-slate-50 text-slate-700 border-slate-200'
+                      ]"
+                      :title="s.cohortDetail"
+                    >
+                      <span v-if="s.cohortSource === 'APPLICATIONS'">🎓</span>
+                      <span v-else>🧪</span>
+                      <span>{{ s.cohortBadgeText || '자연계열' }}</span>
+                    </span>
                   </td>
                   <td class="p-3 text-slate-600 text-[11px]">
                     <span class="font-medium text-slate-800">[{{ s.initialExam?.rawMath || '미적분' }}]</span>
@@ -550,6 +922,17 @@
                     <span class="ml-1 font-semibold" :class="s.status !== 'KEPT_SCIENCE' ? 'text-orange-700' : 'text-slate-700'">
                       {{ s.latestExam?.rawInq1 || '-' }}, {{ s.latestExam?.rawInq2 || '-' }}
                     </span>
+                  </td>
+                  <!-- 회차별 응시 추이 툴팁 (1번 개선안 적용) -->
+                  <td class="p-3 text-center">
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-help border border-slate-200"
+                      :title="s.timelineText || '응시 이력'"
+                    >
+                      <span>⏱️</span>
+                      <span>{{ s.examTimeline?.length || 1 }}개 시험</span>
+                    </button>
                   </td>
                   <td class="p-3 text-center">
                     <span
@@ -587,7 +970,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredCohortStudents.length === 0">
-                  <td colspan="6" class="p-6 text-center text-slate-400 text-xs">
+                  <td colspan="8" class="p-6 text-center text-slate-400 text-xs">
                     조건에 해당하는 학생이 없습니다.
                   </td>
                 </tr>
@@ -670,29 +1053,29 @@
                   <span>📊</span>
                   <span>과목별 점유율 띠 그래프</span>
                 </span>
-                <span class="text-slate-400 font-normal">
-                  상위 2개(사문·생윤): <strong class="text-emerald-700 font-black">76.3%</strong>
+                <span v-if="processedSatamList.length >= 2" class="text-slate-400 font-normal">
+                  상위 2개({{ processedSatamList[0].name }}·{{ processedSatamList[1].name }}): <strong class="text-emerald-700 font-black">{{ (parseFloat(processedSatamList[0].pct) + parseFloat(processedSatamList[1].pct)).toFixed(1) }}%</strong>
                 </span>
               </div>
               <!-- 100% Stacked Segmented Bar -->
               <div class="w-full h-3.5 rounded-full flex overflow-hidden bg-slate-100 border border-slate-200/60 p-0.5 gap-0.5">
                 <div
-                  v-for="s in satamList"
+                  v-for="s in processedSatamList"
                   :key="s.name"
-                  :style="{ width: ((s.count / totalSatamCount) * 100) + '%', backgroundColor: s.color }"
+                  :style="{ width: s.pct + '%', backgroundColor: s.color || '#15803d' }"
                   class="h-full rounded-full transition-all hover:brightness-110 cursor-pointer"
-                  :title="`${s.name}: ${s.count}명 (${((s.count / totalSatamCount) * 100).toFixed(1)}%)`"
+                  :title="`${s.name}: ${s.count}명 (${s.pct}%)`"
                 ></div>
               </div>
               <!-- 하위 레전드 요약 -->
               <div class="flex flex-wrap items-center justify-between pt-0.5 text-[10px] text-slate-500 font-medium">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span v-for="s in satamList.slice(0, 4)" :key="s.name" class="inline-flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: s.color }"></span>
+                  <span v-for="s in processedSatamList.slice(0, 4)" :key="s.name" class="inline-flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: s.color || '#15803d' }"></span>
                     <span class="text-slate-700 font-bold">{{ s.name }}</span>
-                    <span class="text-slate-400 font-mono">{{ ((s.count / totalSatamCount) * 100).toFixed(0) }}%</span>
+                    <span class="text-slate-400 font-mono">{{ s.pct }}%</span>
                   </span>
-                  <span class="text-slate-400">외 {{ satamList.length - 4 }}과목</span>
+                  <span v-if="processedSatamList.length > 4" class="text-slate-400">외 {{ processedSatamList.length - 4 }}과목</span>
                 </div>
                 <span class="text-slate-400 font-mono text-[9px]">* 마우스 오버 시 과목별 인원 표출</span>
               </div>
@@ -750,7 +1133,7 @@
             </div>
 
             <!-- 차트 모드: Chart.js Bar Chart -->
-            <div v-else class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs h-[450px]">
+            <div v-else class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs h-112.5">
               <Bar :data="satamChartData" :options="satamChartOptions" />
             </div>
           </div>
@@ -827,29 +1210,29 @@
                   <span>📊</span>
                   <span>과목별 점유율 띠 그래프</span>
                 </span>
-                <span class="text-slate-400 font-normal">
-                  상위 2개(생명Ⅰ·지구Ⅰ): <strong class="text-indigo-700 font-black">53.1%</strong>
+                <span v-if="processedGwatamList.length >= 2" class="text-slate-400 font-normal">
+                  상위 2개({{ processedGwatamList[0].name }}·{{ processedGwatamList[1].name }}): <strong class="text-indigo-700 font-black">{{ (parseFloat(processedGwatamList[0].pct) + parseFloat(processedGwatamList[1].pct)).toFixed(1) }}%</strong>
                 </span>
               </div>
               <!-- 100% Stacked Segmented Bar -->
               <div class="w-full h-3.5 rounded-full flex overflow-hidden bg-slate-100 border border-slate-200/60 p-0.5 gap-0.5">
                 <div
-                  v-for="q in gwatamList"
+                  v-for="q in processedGwatamList"
                   :key="q.name"
-                  :style="{ width: ((q.count / totalGwatamCount) * 100) + '%', backgroundColor: q.color }"
+                  :style="{ width: q.pct + '%', backgroundColor: q.color || '#9333ea' }"
                   class="h-full rounded-full transition-all hover:brightness-110 cursor-pointer"
-                  :title="`${q.name}: ${q.count}명 (${((q.count / totalGwatamCount) * 100).toFixed(1)}%)`"
+                  :title="`${q.name}: ${q.count}명 (${q.pct}%)`"
                 ></div>
               </div>
               <!-- 하위 레전드 요약 -->
               <div class="flex flex-wrap items-center justify-between pt-0.5 text-[10px] text-slate-500 font-medium">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span v-for="q in gwatamList.slice(0, 4)" :key="q.name" class="inline-flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: q.color }"></span>
+                  <span v-for="q in processedGwatamList.slice(0, 4)" :key="q.name" class="inline-flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: q.color || '#9333ea' }"></span>
                     <span class="text-slate-700 font-bold">{{ q.name }}</span>
-                    <span class="text-slate-400 font-mono">{{ ((q.count / totalGwatamCount) * 100).toFixed(0) }}%</span>
+                    <span class="text-slate-400 font-mono">{{ q.pct }}%</span>
                   </span>
-                  <span class="text-slate-400">외 {{ gwatamList.length - 4 }}과목</span>
+                  <span v-if="processedGwatamList.length > 4" class="text-slate-400">외 {{ processedGwatamList.length - 4 }}과목</span>
                 </div>
                 <span class="text-slate-400 font-mono text-[9px]">* 마우스 오버 시 과목별 인원 표출</span>
               </div>
@@ -907,7 +1290,7 @@
             </div>
 
             <!-- 차트 모드: Chart.js Bar Chart -->
-            <div v-else class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs h-[450px]">
+            <div v-else class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs h-112.5">
               <Bar :data="gwatamChartData" :options="gwatamChartOptions" />
             </div>
           </div>
@@ -926,7 +1309,7 @@
         <span class="text-xs text-slate-400 font-medium hidden sm:inline">실질 경쟁률 하락 효과 & 성적대별 전략</span>
       </div>
       <!-- 1. Hero Banner: 공교육 가치 중심 헤더 -->
-      <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-lg relative overflow-hidden">
+      <div class="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-lg relative overflow-hidden">
         <div class="relative z-10">
           <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-cyan-300 border border-cyan-400/30">
@@ -943,13 +1326,13 @@
             </div>
           </div>
           <h3 class="text-xl sm:text-2xl font-black tracking-tight m-0 text-white">
-            "수능 최저를 맞추는 순간, 실질 경쟁률이 1~2:1로 급락하는 마법"
+            "수능 최저를 맞추는 순간, 실질 경쟁률이 {{ schoolMinScoreStats.avgInitialRate }}:1에서 {{ schoolMinScoreStats.avgRealRate }}:1로 급락하는 마법"
           </h3>
           <p class="text-xs text-slate-300 mt-2.5 leading-relaxed max-w-3xl">
-            수능 최저학력기준이 걸려 있는 전형은 겉보기 합격률이 낮아 보여 기피하기 쉽지만, 
-            <strong>실제로 수능 최저를 맞추는 학생은 30~45% 내외</strong>에 불과합니다. 
-            특히 <strong>4~6등급 중·하위권 학생에게 수능최저(2합 7~8, 1개 4등급 등)는 
-            경쟁자의 65% 이상이 자동 탈락하여 수도권 및 거점국립대를 뚫는 가장 확실한 기적의 역전 카드</strong>입니다.
+            우리 학교 수능최저 지원 <strong>{{ schoolMinScoreStats.totalMinApps }}건</strong> 실측 통계 분석 결과, 
+            최초 외형 경쟁률은 평균 <strong>{{ schoolMinScoreStats.avgInitialRate }}:1</strong>(교과 {{ schoolMinScoreStats.gpaInitialRate }}:1)이지만, 
+            <strong>수능 최저를 충족하는 순간 실질 경쟁률은 {{ schoolMinScoreStats.avgRealRate }}:1(교과 {{ schoolMinScoreStats.gpaRealRate }}:1, 충원율 반영 시 체감 {{ schoolMinScoreStats.avgEffectiveRate }}:1)</strong>로 대폭 급락합니다. 
+            우리 학교 학생들의 수능최저 충족률({{ schoolMinScoreStats.schoolPassRate }}%)을 감안할 때, 최저만 맞추면 경쟁자의 60% 이상이 자동 탈락하여 수도권 및 거점국립대를 뚫는 가장 확실한 기적의 역전 카드입니다.
           </p>
         </div>
       </div>
@@ -976,7 +1359,7 @@
         <!-- 3개 전형 유형별 공식 충족률 카드 -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- 교과 -->
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-100 space-y-2">
+          <div class="p-4 rounded-2xl bg-linear-to-br from-blue-50/70 to-indigo-50/40 border border-blue-100 space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-xs font-black text-blue-900 flex items-center gap-1.5">
                 <span>📘</span>
@@ -997,7 +1380,7 @@
           </div>
 
           <!-- 종합 -->
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-100 space-y-2">
+          <div class="p-4 rounded-2xl bg-linear-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-100 space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-xs font-black text-emerald-900 flex items-center gap-1.5">
                 <span>📗</span>
@@ -1018,7 +1401,7 @@
           </div>
 
           <!-- 논술 -->
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-purple-50/70 to-fuchsia-50/40 border border-purple-100 space-y-2">
+          <div class="p-4 rounded-2xl bg-linear-to-br from-purple-50/70 to-fuchsia-50/40 border border-purple-100 space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-xs font-black text-purple-900 flex items-center gap-1.5">
                 <span>📕</span>
@@ -1153,20 +1536,21 @@
         <!-- Metric 1: 외형 vs 실질 경쟁률 평균 완화 -->
         <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
           <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-2">
-            <span>📉 실질 체감 경쟁률 완화 폭</span>
-            <span class="text-indigo-600 font-mono font-black text-xs">최대 6.2배 완화</span>
+            <span>📉 우리학교 실질 경쟁률 완화 폭</span>
+            <span class="text-indigo-600 font-mono font-black text-xs">{{ schoolMinScoreStats.easeFactor }}배 완화</span>
           </div>
           <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black text-slate-900 font-mono">1.33:1</span>
-            <span class="text-xs text-slate-500 line-through">최초 8.1:1</span>
+            <span class="text-3xl font-black text-slate-900 font-mono">{{ schoolMinScoreStats.avgRealRate }}:1</span>
+            <span class="text-xs text-slate-500 line-through">최초 {{ schoolMinScoreStats.avgInitialRate }}:1</span>
+            <span class="text-[11px] font-bold text-emerald-600">(체감 {{ schoolMinScoreStats.avgEffectiveRate }}:1)</span>
           </div>
           <p class="text-[11px] text-slate-600 mt-2 mb-0 leading-relaxed">
-            최저 충족률(평균 41%)과 충원율(평균 150%) 반영 시, 8명 경쟁이 <strong>1.3명 실질 경쟁</strong>으로 급감합니다.
+            우리 학교 수능최저 지원 {{ schoolMinScoreStats.totalMinApps }}건 분석: 최저 충족률(평균 {{ schoolMinScoreStats.avgPassRate }}%) 및 충원율 반영 시 최초 {{ schoolMinScoreStats.avgInitialRate }}명 경쟁이 <strong>{{ schoolMinScoreStats.avgRealRate }}명 실질 경쟁</strong>(체감 {{ schoolMinScoreStats.avgEffectiveRate }}:1)으로 급감합니다.
           </p>
         </div>
 
         <!-- Metric 2: 4~5등급 선배 실제 합격률 격차 -->
-        <div class="bg-gradient-to-br from-rose-50 to-orange-50 rounded-3xl p-5 border border-rose-200/80 shadow-2xs">
+        <div class="bg-linear-to-br from-rose-50 to-orange-50 rounded-3xl p-5 border border-rose-200/80 shadow-2xs">
           <div class="flex items-center justify-between text-xs font-bold text-rose-800 mb-2">
             <span>🏆 4~5등급 선배 최저 합격 실증</span>
             <span class="px-2 py-0.5 rounded-full bg-rose-200 text-rose-800 font-bold text-[10px]">+35.3%p 우위</span>
@@ -1180,10 +1564,10 @@
           </p>
         </div>
 
-        <!-- Metric 3: 2027 우리 학생 수혜 현황 -->
+        <!-- Metric 3: 해당 학년도 우리 학생 수혜 현황 -->
         <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-2xs">
           <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-2">
-            <span>🚀 2027 우리 학생 최저 도전 현황</span>
+            <span>🚀 {{ academicYearLabel }} 우리 학생 최저 도전 현황</span>
             <span class="text-emerald-700 font-mono font-black text-xs">4등급 이하 대상</span>
           </div>
           <div class="flex items-baseline gap-2">
@@ -1333,7 +1717,7 @@
                     </div>
                     <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div 
-                        class="h-full bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full transition-all duration-500"
+                        class="h-full bg-linear-to-r from-indigo-500 to-blue-600 rounded-full transition-all duration-500"
                         :style="{ width: Math.min(100, Math.max(12, (item.realRate / item.initialRate) * 100)) + '%' }"
                       ></div>
                     </div>
@@ -1356,8 +1740,8 @@
                         :class="[
                           'h-full rounded-full transition-all duration-500',
                           item.isAllPass 
-                            ? 'bg-gradient-to-r from-amber-400 to-orange-500' 
-                            : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                            ? 'bg-linear-to-r from-amber-400 to-orange-500' 
+                            : 'bg-linear-to-r from-emerald-500 to-teal-500'
                         ]"
                         :style="{ width: Math.min(100, Math.max(8, (item.effectiveRate / item.initialRate) * 100)) + '%' }"
                       ></div>
@@ -1368,7 +1752,7 @@
 
               <!-- Card Bottom -->
               <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span class="truncate max-w-[210px]">{{ item.note }}</span>
+                <span class="truncate max-w-52.5">{{ item.note }}</span>
                 <span class="text-indigo-600 font-bold text-[10px] shrink-0 ml-1">호버/클릭 상세 ➔</span>
               </div>
 
@@ -1546,7 +1930,7 @@
             </div>
 
             <!-- 1. 3단 경쟁률 급락 시각화 카드 -->
-            <div class="grid grid-cols-3 gap-2.5 p-4 rounded-2xl bg-gradient-to-r from-slate-50 via-indigo-50/40 to-emerald-50/50 border border-slate-200">
+            <div class="grid grid-cols-3 gap-2.5 p-4 rounded-2xl bg-linear-to-r from-slate-50 via-indigo-50/40 to-emerald-50/50 border border-slate-200">
               <div class="text-center">
                 <span class="text-[11px] text-slate-500 block font-medium">① 최초 외형</span>
                 <span class="text-2xl font-black text-slate-400 font-mono mt-0.5 block">{{ selectedModalItem.initialRate }}:1</span>
@@ -1635,7 +2019,7 @@
       </Teleport>
 
       <!-- 5. 공교육 감동 실증: 4등급 이하 선배들의 실제 최저 역전 합격 명예의 전당 -->
-      <div class="bg-gradient-to-br from-slate-50 via-rose-50/30 to-slate-50 rounded-3xl p-6 border border-rose-200/70 shadow-2xs space-y-4">
+      <div class="bg-linear-to-br from-slate-50 via-rose-50/30 to-slate-50 rounded-3xl p-6 border border-rose-200/70 shadow-2xs space-y-4">
         <div class="flex items-center justify-between pb-3 border-b border-rose-200/50">
           <div>
             <div class="flex items-center gap-2">
@@ -1881,14 +2265,14 @@
       <div class="flex items-center justify-between pb-1">
         <div class="flex items-center gap-2">
           <span class="flex items-center justify-center w-7 h-7 rounded-xl bg-amber-50 text-amber-700 text-sm font-black border border-amber-200">4</span>
-          <h3 class="text-base sm:text-lg font-black text-slate-900 m-0">2027 대입 5대 핵심 전략</h3>
+          <h3 class="text-base sm:text-lg font-black text-slate-900 m-0">{{ academicYearLabel }} 대입 5대 핵심 전략</h3>
         </div>
         <span class="text-xs text-slate-400 font-medium hidden sm:inline">수시·정시 대비 5대 핵심 가이드</span>
       </div>
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
           <span>💡</span>
-          <span>2027학년도 수시·정시 대비 5대 핵심 지침</span>
+          <span>{{ academicYearLabel }}학년도 수시·정시 대비 5대 핵심 지침</span>
         </span>
       </div>
 
@@ -1900,7 +2284,7 @@
           :class="[
             'p-5 rounded-3xl border transition-all duration-200 cursor-pointer flex flex-col justify-between',
             expandedCard === card.num
-              ? 'bg-gradient-to-br from-indigo-50/70 to-blue-50/70 border-indigo-300 shadow-md ring-2 ring-indigo-200'
+              ? 'bg-linear-to-br from-indigo-50/70 to-blue-50/70 border-indigo-300 shadow-md ring-2 ring-indigo-200'
               : 'bg-slate-50/70 hover:bg-white border-slate-200/90 hover:border-slate-300'
           ]"
         >
@@ -1949,7 +2333,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -1962,18 +2346,18 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
-import { Radar, Bar } from 'vue-chartjs'
+import { Radar, Bar, Line } from 'vue-chartjs'
 import * as XLSX from 'xlsx'
 import {
   calculateSatamRunStats,
   parseMockExamWorkbook,
-  generateRealisticMockSample,
   STANDARD_SCIENCE_SUBJECTS,
   STANDARD_SOCIAL_SUBJECTS,
   normalizeSubject
 } from '../utils/satamRunCalculator.js'
 import { fetchAndParseKcueMockData, DEFAULT_CSAT_PASS_RATE_BENCHMARK, OFFICIAL_CSAT_PASS_RATE_SUMMARY } from '../../api/statApi.js'
-import { useStatData } from '../composables/useStatData.js'
+import { schoolName } from '../../utils/schoolConfig'
+import { useStatData, maskName } from '../composables/useStatData.js'
 
 ChartJS.register(
   RadialLinearScale,
@@ -1987,26 +2371,95 @@ ChartJS.register(
   Legend
 )
 
-// Sub Tabs (숫자 기반 명확한 점프 탭)
-const subTabs = [
-  { id: 'radar', num: '1', label: '과목별 내신 vs 수능 등급 비교' },
-  { id: 'satamRun', num: '2', label: '사탐런 & 탐구 응시 분석' },
-  { id: 'minScoreMagic', num: '3', label: '수능최저 충족 실질 경쟁률' },
-  { id: 'strategyCards', num: '4', label: '2027 대입 5대 핵심 전략' }
-]
-
+const widgetRootRef = ref(null)
+const stickyNavRef = ref(null)
 const activeSubTab = ref('radar')
+let isClickScrolling = false
+let clickScrollTimeout = null
+let scrollContainerEl = null
+let scrollRafId = null
+let sectionObserver = null
+let handleScrollEvent = null
+let handleUserIntentEvent = null
+let handleScrollEndEvent = null
 
 // 상단 세그먼트 버튼 클릭 시 해당 섹션으로 부드럽게 점프
 function scrollToTab(tabId) {
   activeSubTab.value = tabId
+  isClickScrolling = true
+  if (clickScrollTimeout) clearTimeout(clickScrollTimeout)
+  clickScrollTimeout = setTimeout(() => {
+    isClickScrolling = false
+  }, 900)
+
   const targetEl = document.getElementById(`sec-${tabId}`)
   if (targetEl) {
     targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 
-let sectionObserver = null
+// 사용자 직접 스크롤(마우스 휠, 터치) 시 클릭 스크롤 잠금 즉시 해제
+function handleUserScrollIntent() {
+  if (isClickScrolling) {
+    isClickScrolling = false
+    if (clickScrollTimeout) clearTimeout(clickScrollTimeout)
+  }
+}
+
+// 스크롤 시 현재 뷰포트에 위치한 섹션 버튼 자동 동기화 (Scroll Spy)
+function updateActiveSection() {
+  if (isClickScrolling) return
+
+  const sectionIds = ['radar', 'satamRun', 'minScoreMagic', 'strategyCards']
+
+  // 1. 실제 부모 스크롤 컨테이너 바닥 도달 판정 (4번 섹션 바닥 도달 시 우선 활성화)
+  const scrollContainer = widgetRootRef.value?.closest('.overflow-y-auto') || (document.scrollingElement || document.documentElement)
+  if (scrollContainer && scrollContainer !== document.documentElement) {
+    const isScrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 80
+    const isAtBottom = isScrollable && 
+      (scrollContainer.scrollTop > 100) && 
+      (scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 60)
+    if (isAtBottom) {
+      if (activeSubTab.value !== 'strategyCards') {
+        activeSubTab.value = 'strategyCards'
+      }
+      return
+    }
+  }
+
+  // 2. 기준선(targetLine) 계산: 스티키 내비게이션 바 하단 위치 + 70px 여유
+  let targetLine = 240
+  if (stickyNavRef.value) {
+    const navRect = stickyNavRef.value.getBoundingClientRect()
+    targetLine = navRect.bottom + 70
+  }
+
+  // 3. 섹션 판정: 기준선(targetLine)보다 위쪽에 위치한 가장 마지막 섹션 선택 (기본값: 'radar')
+  let matchedId = 'radar'
+  for (const id of sectionIds) {
+    const el = document.getElementById(`sec-${id}`)
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      if (rect.top <= targetLine) {
+        matchedId = id
+      }
+    }
+  }
+
+  if (matchedId && activeSubTab.value !== matchedId) {
+    activeSubTab.value = matchedId
+  }
+}
+
+// 60fps 부드러운 스크롤 감지를 위한 requestAnimationFrame 핸들러
+function onScroll() {
+  if (isClickScrolling) return
+  if (scrollRafId) return
+  scrollRafId = requestAnimationFrame(() => {
+    updateActiveSection()
+    scrollRafId = null
+  })
+}
 
 // useStatData 전역 상태 연동 (학년도 선택 & 2027 모의가채점 연계)
 const {
@@ -2015,34 +2468,58 @@ const {
   mockExamRecords,
   loadMockExamData,
   isLoadingMockExams,
+  isLoadingYearData,
   csatPassRateTable,
   loadCsatPassRateData,
-  isLoadingCsatPassRate
+  isLoadingCsatPassRate,
+  schoolMinScoreStats
 } = useStatData()
 
 const localCustomMockRecords = ref([])
 
 onMounted(() => {
-  if (selectedAcademicYear.value === '2027' && (!mockExamRecords.value || mockExamRecords.value.length === 0)) {
+  if (Number(selectedAcademicYear.value) >= 2027 && (!mockExamRecords.value || mockExamRecords.value.length === 0)) {
     loadMockExamData().catch(() => {})
   }
   loadCsatPassRateData().catch(() => {})
 
-  // 스크롤 시 현재 뷰포트에 위치한 섹션 버튼 자동 활성화
+  handleScrollEvent = onScroll
+  handleUserIntentEvent = handleUserScrollIntent
+  handleScrollEndEvent = () => {
+    isClickScrolling = false
+    updateActiveSection()
+  }
+
+  window.addEventListener('scroll', handleScrollEvent, { passive: true, capture: true })
+  window.addEventListener('wheel', handleUserIntentEvent, { passive: true, capture: true })
+  window.addEventListener('touchmove', handleUserIntentEvent, { passive: true, capture: true })
+  window.addEventListener('scrollend', handleScrollEndEvent, { passive: true })
+
+  nextTick(() => {
+    scrollContainerEl = widgetRootRef.value?.closest('.overflow-y-auto')
+    if (scrollContainerEl) {
+      scrollContainerEl.addEventListener('scroll', handleScrollEvent, { passive: true })
+      scrollContainerEl.addEventListener('wheel', handleUserIntentEvent, { passive: true })
+      scrollContainerEl.addEventListener('touchmove', handleUserIntentEvent, { passive: true })
+      scrollContainerEl.addEventListener('scrollend', handleScrollEndEvent, { passive: true })
+    }
+
+    // 초기 마운트 시 위치 감지 1회 실행
+    setTimeout(() => {
+      updateActiveSection()
+    }, 250)
+  })
+
+  // IntersectionObserver 연동
   const sectionIds = ['radar', 'satamRun', 'minScoreMagic', 'strategyCards']
   if (typeof IntersectionObserver !== 'undefined') {
-    sectionObserver = new IntersectionObserver((entries) => {
-      const visible = entries.filter(e => e.isIntersecting)
-      if (visible.length > 0) {
-        visible.sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top))
-        const targetId = visible[0].target.id.replace('sec-', '')
-        if (targetId && activeSubTab.value !== targetId) {
-          activeSubTab.value = targetId
-        }
+    sectionObserver = new IntersectionObserver(() => {
+      if (!isClickScrolling) {
+        updateActiveSection()
       }
     }, {
-      rootMargin: '-80px 0px -55% 0px',
-      threshold: [0, 0.1, 0.2]
+      rootMargin: '-80px 0px -40% 0px',
+      threshold: [0, 0.2, 0.5]
     })
 
     setTimeout(() => {
@@ -2055,35 +2532,108 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (clickScrollTimeout) clearTimeout(clickScrollTimeout)
+  if (scrollRafId) cancelAnimationFrame(scrollRafId)
+  if (handleScrollEvent) {
+    window.removeEventListener('scroll', handleScrollEvent, { capture: true })
+    window.removeEventListener('wheel', handleUserIntentEvent, { capture: true })
+    window.removeEventListener('touchmove', handleUserIntentEvent, { capture: true })
+    window.removeEventListener('scrollend', handleScrollEndEvent)
+    if (scrollContainerEl) {
+      scrollContainerEl.removeEventListener('scroll', handleScrollEvent)
+      scrollContainerEl.removeEventListener('wheel', handleUserIntentEvent)
+      scrollContainerEl.removeEventListener('touchmove', handleUserIntentEvent)
+      scrollContainerEl.removeEventListener('scrollend', handleScrollEndEvent)
+    }
+  }
   if (sectionObserver) {
     sectionObserver.disconnect()
   }
 })
 
 watch(selectedAcademicYear, (newYear) => {
-  if (newYear === '2027' && (!mockExamRecords.value || mockExamRecords.value.length === 0)) {
-    loadMockExamData().catch(() => {})
+  if (Number(newYear) >= 2027 && (!mockExamRecords.value || mockExamRecords.value.length === 0)) {
+    loadMockExamData(false, newYear).catch(() => {})
   }
 })
 
-// -------------------------------------------------------------
-// 1. Radar Chart Data (내신 vs 수능 5개 영역 방사형)
-// - 2026학년도: 보고서 1페이지 2026 수능 vs 내신 고정 데이터
-// - 2027학년도: 3·5·6·7·9·10월 모의고사 누적 성적 기반 자동 계산
-//   (단, '2027모의가채점' A열에 '수능' 입력 시 모의고사 무시 및 수능 성적으로만 전환)
-// -------------------------------------------------------------
+// 모의고사 성적 레코드 및 수시 지원 데이터 로드 시 사탐런 통계 자동 산출
+watch([mockExamRecords, applications, selectedAcademicYear], ([records, apps, yr]) => {
+  mockStats.value = null
 
-// 내신 5과목(국어, 수학, 영어, 사탐, 과탐) 평균 등급
-const currentGpaRaw = computed(() => {
-  if (selectedAcademicYear.value !== '2027') {
-    // 2026학년도 기준
-    return [4.20, 4.50, 4.80, 4.60, 4.40]
+  // 1. 모의고사 성적 데이터가 있는 경우 (예: 2027학년도 등)
+  if (records && records.length > 0) {
+    try {
+      const stats = calculateSatamRunStats(records, apps || [])
+      if (stats && stats.naturalCohortCount > 0) {
+        mockStats.value = stats
+        return
+      }
+    } catch (e) {
+      console.warn('Failed to calculate satam run stats automatically:', e)
+    }
   }
 
-  // 2027학년도: applications에서 유니크 학생들의 교과 성적 평균 산출
+  // 2. 모의고사 성적표가 없는 연도(2026, 2025 등): 수시 지원 원자료(applications)의 수능 과목/등급 열에서 수능 응시 기록 추출
+  if (apps && apps.length > 0) {
+    try {
+      const studentExamsMap = new Map()
+      apps.forEach(app => {
+        const k = app.studentKey || `${app.classNum || ''}-${app.studentNum || ''}_${app.name || ''}`
+        if (!studentExamsMap.has(k)) {
+          const math = app.csatMathSubject || app.rawRow?.['수학 (과목)'] || app.rawRow?.['수학(과목)'] || app.rawRow?.['수학'] || ''
+          const inq1 = app.csatInq1Subject || app.rawRow?.['탐구1 (과목)'] || app.rawRow?.['탐구1(과목)'] || app.rawRow?.['탐구1'] || ''
+          const inq2 = app.csatInq2Subject || app.rawRow?.['탐구2 (과목)'] || app.rawRow?.['탐구2(과목)'] || app.rawRow?.['탐구2'] || ''
+          const inq1G = app.csatInq1Grade || app.rawRow?.['탐구1 (등급)'] || app.rawRow?.['탐구1(등급)'] || null
+          const inq2G = app.csatInq2Grade || app.rawRow?.['탐구2 (등급)'] || app.rawRow?.['탐구2(등급)'] || null
+          const mathG = app.csatMathGrade || app.rawRow?.['수학 (등급)'] || app.rawRow?.['수학(등급)'] || null
+          const korG = app.csatKorGrade || app.rawRow?.['국어 (등급)'] || app.rawRow?.['국어(등급)'] || null
+          const engG = app.csatEngGrade || app.rawRow?.['영어 (등급)'] || app.rawRow?.['영어(등급)'] || null
+
+          if (math || inq1 || inq2) {
+            studentExamsMap.set(k, {
+              studentKey: k,
+              name: app.name || '학생',
+              classNum: app.classNum || '',
+              studentNum: app.studentNum || '',
+              grade: 3,
+              examName: `${yr} 수능`,
+              monthOrder: 11,
+              mathSubject: math,
+              inquiry1: inq1,
+              inquiry2: inq2,
+              mathGrade: mathG,
+              inq1Grade: inq1G,
+              inq2Grade: inq2G,
+              korGrade: korG,
+              engGrade: engG
+            })
+          }
+        }
+      })
+
+      const synthExams = Array.from(studentExamsMap.values())
+      if (synthExams.length > 0) {
+        const stats = calculateSatamRunStats(synthExams, apps)
+        if (stats && stats.naturalCohortCount > 0) {
+          mockStats.value = stats
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to calculate satam run stats from applications:', e)
+    }
+  }
+}, { immediate: true })
+
+// -------------------------------------------------------------
+// 1. Radar Chart Data (내신 vs 수능 5개 영역 방사형)
+// -------------------------------------------------------------
+
+// 내신 5과목(국어, 수학, 영어, 사탐, 과탐) 평균 등급 (전체 학년도 applications 원자료 기반 동적 산출)
+const currentGpaRaw = computed(() => {
   const appList = applications.value || []
   if (appList.length === 0) {
-    return [4.38, 4.48, 4.42, 4.18, 4.65] // 2027 기준치
+    return [4.39, 4.48, 4.42, 4.19, 4.66]
   }
 
   const studentMap = new Map()
@@ -2123,14 +2673,27 @@ const currentGpaRaw = computed(() => {
   ]
 })
 
+// 내신 5과목 전체 평균 (모의고사 추이 선그래프의 기준선 연동)
+const avgSchoolGpa = computed(() => {
+  const g = currentGpaRaw.value
+  if (!g || g.length === 0) return 4.44
+  const valid = g.filter(v => v !== null && !isNaN(v) && Number(v) > 0)
+  if (valid.length === 0) return 4.44
+  return Number((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2))
+})
+
 // 수능 시험 레코드 판정 (A열 또는 examName에 '수능' 표기)
 function isCsatRecord(r) {
   if (!r) return false
   const name = String(r.examName || '').trim()
+  const rawMonth = String(r.rawMonth || '').trim()
   if (name.includes('수능') || name.includes('대학수학능력시험') || name === 'CSAT') return true
+  if (rawMonth.includes('수능') || rawMonth.includes('대학수학능력시험') || rawMonth === 'CSAT') return true
   if (r.rawRow) {
+    if (Array.isArray(r.rawRow) && String(r.rawRow[0] || '').includes('수능')) return true
     const firstVal = String(Object.values(r.rawRow)[0] || '').trim()
     if (firstVal.includes('수능')) return true
+    if (r.rawRow['월'] && String(r.rawRow['월']).includes('수능')) return true
   }
   return false
 }
@@ -2145,199 +2708,332 @@ function isTargetMockExam(r) {
   return true
 }
 
-const currentSatAnalysis = computed(() => {
-  if (selectedAcademicYear.value !== '2027') {
-    // 2026학년도 대입 (고정 데이터)
-    return {
-      mode: '2026_CSAT',
-      isCsat: true,
-      hasRealData: true,
-      studentCount: 227,
-      label: '수능 평균 등급',
-      subText: '2026 수능 응시 227명 기준',
-      grades: [6.10, 5.80, 4.94, 6.00, 6.30],
-      subjectsDetail: {
-        kor: { totalCount: 227, totalAvg: '6.10', unmaeCount: 36, unmaeAvg: '5.28', hwajakCount: 191, hwajakAvg: '6.26' },
-        math: { totalCount: 214, totalAvg: '5.80', mijukCount: 69, mijukAvg: '4.71', hwaktongCount: 145, hwaktongAvg: '6.32' },
-        eng: { totalCount: 221, totalAvg: '4.94' }
-      }
-    }
-  }
+// -------------------------------------------------------------
+// 모의고사 회차 메타데이터 및 월 추출 헬퍼
+// -------------------------------------------------------------
+const MOCK_EXAM_MONTH_META = [
+  { key: 'ALL', label: '전체 (3~10월 통합)', shortLabel: '전체 (3~10월)', desc: '해당 학년도 전체 고유 응시자 기준' },
+  { key: '3', label: '3월 학평 (서울시교육청)', shortLabel: '3월 학평', desc: '고3 첫 전국연합학력평가' },
+  { key: '5', label: '5월 학평 (경기도교육청)', shortLabel: '5월 학평', desc: '경기도교육청 학력평가' },
+  { key: '6', label: '6월 모평 (평가원)', shortLabel: '6월 모평', desc: '첫 평가원 주관 모의평가 (N수생 유입)' },
+  { key: '7', label: '7월 학평 (인천시교육청)', shortLabel: '7월 학평', desc: '인천시교육청 학력평가' },
+  { key: '9', label: '9월 모평 (평가원)', shortLabel: '9월 모평', desc: '수시 원서접수 직전 최종 모의평가' },
+  { key: '10', label: '10월 학평 (서울시교육청)', shortLabel: '10월 학평', desc: '수능 직전 최종 점검 학력평가' },
+  { key: 'CSAT', label: '대학수학능력시험 (수능)', shortLabel: '수능 (실채점)', desc: '최종 실채점 성적' }
+]
 
-  // 2027학년도 대입 분석: 2027모의가채점 연계
-  const records = (mockExamRecords.value && mockExamRecords.value.length > 0)
+const selectedMockExamMonth = ref('ALL') // 'ALL', '3', '5', '6', '7', '9', '10', 'CSAT'
+const mockTrendViewMode = ref('SPLIT') // 'SPLIT' (선택과목 분리) | 'COMBINED' (5대 영역 통합) | 'COUNT' (응시 인원수)
+const isGradeZoomed = ref(true) // true: 3.5~7.0등급 집중 확대 | false: 1~9등급 전체 스케일
+
+function extractExamMonth(r) {
+  if (!r) return null
+  if (isCsatRecord(r)) return 'CSAT'
+  if (r.monthOrder) {
+    const mo = Number(r.monthOrder)
+    if ([3, 4, 5, 6, 7, 8, 9, 10, 11].includes(mo)) return String(mo)
+  }
+  const name = String(r.examName || '').trim()
+  if (/^(10|[3-9]|11)$/.test(name)) return name
+  const match = name.match(/(10|[3-9]|11)\s*월?/)
+  if (match) return match[1]
+  return null
+}
+
+// 실제 데이터에 존재하는 모의고사 회차 옵션 목록 (각 월별 응시 인원수 포함)
+
+// 고3 대입 분석 전용: 3학년 레코드만 선별 (1·2학년 데이터 통계 오염 방지)
+const highSchoolMockRecords = computed(() => {
+  const all = (mockExamRecords.value && mockExamRecords.value.length > 0)
     ? mockExamRecords.value
     : (localCustomMockRecords.value || [])
+  return all.filter(r => Number(r.grade) === 3 || !r.grade)
+})
 
-  const csatRecords = records.filter(isCsatRecord)
-  const hasCsat = csatRecords.length > 0
+// 해당 대입학년도 수능 결과 존재 여부 판정:
+// 2026학년도 이하 과거 연도는 수능 결과가 이미 확정되어 있으므로 true
+// 2027학년도 이상은 '2027모의가채점' 또는 '2027모의결과'의 A컬럼(rawMonth/examName)에 '수능'이 있는 경우에만 true
+const hasCsatData = computed(() => {
+  if (Number(selectedAcademicYear.value) < 2027) return true
+  const records = highSchoolMockRecords.value || []
+  return records.some(isCsatRecord)
+})
 
-  let targetRecords = []
-  let isCsat = false
-  let label = '모의고사 평균 등급 (3~10월)'
+// 대시보드 용어 통일: 수능 데이터 미등록 시 '모의고사', 수능 데이터 등록(또는 과거 수능) 시 '수능'
+const examTerm = computed(() => hasCsatData.value ? '수능' : '모의고사')
 
-  if (hasCsat) {
-    // 12월 수능 결과 발표 후: 모의고사 무시하고 수능 성적으로만 분석
-    targetRecords = csatRecords
-    isCsat = true
-    label = '수능 평균 등급 (실채점)'
-  } else {
-    // 3, 5, 6, 7, 9, 10월 모의고사 성적 근거
-    targetRecords = records.filter(isTargetMockExam)
-    isCsat = false
-    label = '모의고사 평균 등급 (3~10월)'
-  }
+const academicYearLabel = computed(() => selectedAcademicYear.value || '2027')
 
-  // 아직 구글 시트 성적을 로드하지 않은 초기 상태 fallback (2027 추정치)
-  if (targetRecords.length === 0) {
+// 해당 학년도 모의고사 성적 데이터 존재 여부
+const hasMockData = computed(() => highSchoolMockRecords.value && highSchoolMockRecords.value.length > 0)
+
+// 사탐런 섹션 뱃지 타이틀
+const satamAnalysisBadgeTitle = computed(() => {
+  return hasMockData.value
+    ? `${academicYearLabel.value} 모의고사 및 수시 가채점 연계 분석`
+    : `${academicYearLabel.value}수시 지원 원자료 연계 탐구 분석`
+})
+
+// Sub Tabs (숫자 기반 명확한 점프 탭)
+const subTabs = computed(() => [
+  { id: 'radar', num: '1', label: `과목별 내신 vs ${examTerm.value} 등급 비교` },
+  { id: 'satamRun', num: '2', label: '사탐런 & 탐구 응시 분석' },
+  { id: 'minScoreMagic', num: '3', label: '수능최저 충족 실질 경쟁률' },
+  { id: 'strategyCards', num: '4', label: `${academicYearLabel.value} 대입 5대 핵심 전략` }
+])
+
+const availableExamMonthOptions = computed(() => {
+  const records = highSchoolMockRecords.value
+
+  const countByMonth = {}
+  records.forEach(r => {
+    const m = extractExamMonth(r)
+    if (!m) return
+    // 실제 성적(등급)이 존재하는 실응시자만 카운트
+    const hasScore = (
+      r.korGrade != null || 
+      r.mathGrade != null || 
+      r.engGrade != null || 
+      r.inq1Grade != null || 
+      r.inq2Grade != null || 
+      r.histGrade != null
+    )
+    if (!hasScore) return
+    if (!countByMonth[m]) countByMonth[m] = new Set()
+    const key = r.studentKey || r.name
+    if (key) countByMonth[m].add(key)
+  })
+
+  return MOCK_EXAM_MONTH_META.filter(item => item.key !== 'ALL').map(item => {
+    const s = countByMonth[item.key]
+    const cnt = s ? s.size : 0
     return {
-      mode: '2027_MOCK',
-      isCsat: false,
+      ...item,
+      count: cnt,
+      hasData: cnt > 0,
+      displayLabel: cnt > 0 ? `${item.shortLabel} (${cnt}명)` : `${item.shortLabel} (미등록)`
+    }
+  })
+})
+
+// 1~9등급 수직선 위치 비율 계산 헬퍼 (1등급: 0% [좌측], 9등급: 100% [우측])
+const getRankMarkerLeft = (grade) => {
+  const g = Number(grade)
+  if (isNaN(g) || g <= 0) return '50%'
+  const clamped = Math.max(1, Math.min(9, g))
+  return (((clamped - 1) / 8) * 100).toFixed(1) + '%'
+}
+
+// 등급 유효성 검증 및 절대평가/원점수/표준점수 환산 헬퍼 (1~9등급 보장)
+const cleanGradeNum = (val) => {
+  if (val === null || val === undefined || val === '') return null
+  const clean = String(val).replace(/[^0-9.]/g, '')
+  if (!clean) return null
+  const n = Number(clean)
+  return (isNaN(n) || n <= 0) ? null : n
+}
+
+const normalizeKorGradeVal = (val) => {
+  const n = cleanGradeNum(val)
+  if (n === null) return null
+  if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
+  if (n > 100) {
+    if (n >= 132) return 1
+    if (n >= 124) return 2
+    if (n >= 115) return 3
+    if (n >= 104) return 4
+    if (n >= 92) return 5
+    if (n >= 80) return 6
+    if (n >= 68) return 7
+    if (n >= 56) return 8
+    return 9
+  }
+  if (n >= 88) return 1
+  if (n >= 80) return 2
+  if (n >= 70) return 3
+  if (n >= 58) return 4
+  if (n >= 46) return 5
+  if (n >= 34) return 6
+  if (n >= 22) return 7
+  if (n >= 12) return 8
+  return 9
+}
+
+const normalizeMathGradeVal = (val) => {
+  const n = cleanGradeNum(val)
+  if (n === null) return null
+  if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
+  if (n > 100) {
+    if (n >= 133) return 1
+    if (n >= 124) return 2
+    if (n >= 115) return 3
+    if (n >= 104) return 4
+    if (n >= 91) return 5
+    if (n >= 79) return 6
+    if (n >= 67) return 7
+    if (n >= 55) return 8
+    return 9
+  }
+  if (n >= 84) return 1
+  if (n >= 74) return 2
+  if (n >= 62) return 3
+  if (n >= 50) return 4
+  if (n >= 38) return 5
+  if (n >= 26) return 6
+  if (n >= 16) return 7
+  if (n >= 8) return 8
+  return 9
+}
+
+const normalizeEngGradeVal = (val) => {
+  const n = cleanGradeNum(val)
+  if (n === null) return null
+  if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
+  if (n > 9 && n <= 100) {
+    if (n >= 90) return 1
+    if (n >= 80) return 2
+    if (n >= 70) return 3
+    if (n >= 60) return 4
+    if (n >= 50) return 5
+    if (n >= 40) return 6
+    if (n >= 30) return 7
+    if (n >= 20) return 8
+    return 9
+  }
+  return null
+}
+
+const normalizeInqGradeVal = (val) => {
+  const n = cleanGradeNum(val)
+  if (n === null) return null
+  if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
+  if (n > 9 && n <= 50) {
+    if (n >= 42) return 1
+    if (n >= 36) return 2
+    if (n >= 30) return 3
+    if (n >= 23) return 4
+    if (n >= 17) return 5
+    if (n >= 11) return 6
+    if (n >= 6) return 7
+    if (n >= 3) return 8
+    return 9
+  }
+  if (n > 50) {
+    if (n >= 66) return 1
+    if (n >= 61) return 2
+    if (n >= 55) return 3
+    if (n >= 48) return 4
+    if (n >= 42) return 5
+    if (n >= 35) return 6
+    if (n >= 29) return 7
+    if (n >= 22) return 8
+    return 9
+  }
+  return null
+}
+
+// -------------------------------------------------------------
+// 탐구 과목별 표준 색상 매핑
+// -------------------------------------------------------------
+const INQUIRY_COLOR_MAP = {
+  '사회·문화': '#15803d',
+  '생활과 윤리': '#0284c7',
+  '한국지리': '#0f766e',
+  '윤리와 사상': '#0369a1',
+  '정치와 법': '#b45309',
+  '세계 지리': '#c026d3',
+  '세계사': '#65a30d',
+  '경제': '#0284c7',
+  '동아시아사': '#ea580c',
+  '생명 과학 Ⅰ': '#166534',
+  '생명과학Ⅰ': '#166534',
+  '생명 과학 Ⅱ': '#0284c7',
+  '생명과학Ⅱ': '#0284c7',
+  '지구 과학 Ⅰ': '#9333ea',
+  '지구과학Ⅰ': '#9333ea',
+  '지구 과학 Ⅱ': '#65a30d',
+  '지구과학Ⅱ': '#65a30d',
+  '물리학 Ⅰ': '#0369a1',
+  '물리학Ⅰ': '#0369a1',
+  '물리학 Ⅱ': '#ea580c',
+  '물리학Ⅱ': '#ea580c',
+  '화학 Ⅰ': '#0f172a',
+  '화학Ⅰ': '#0f172a',
+  '화학 Ⅱ': '#9a3412',
+  '화학Ⅱ': '#9a3412'
+}
+
+// -------------------------------------------------------------
+// 2026학년도 공식 수능 기준 탐구 과목 리스트 (사탐 9과목, 과탐 8과목)
+// -------------------------------------------------------------
+const satamList = [
+  { name: '사회·문화', count: 127, grade: '5.94', color: '#15803d' },
+  { name: '생활과 윤리', count: 111, grade: '6.00', color: '#0284c7' },
+  { name: '한국지리', count: 18, grade: '6.89', color: '#0f766e' },
+  { name: '윤리와 사상', count: 16, grade: '6.38', color: '#0369a1' },
+  { name: '정치와 법', count: 14, grade: '5.93', color: '#b45309' },
+  { name: '세계 지리', count: 13, grade: '7.59', color: '#c026d3' },
+  { name: '세계사', count: 7, grade: '5.43', color: '#65a30d' },
+  { name: '경제', count: 3, grade: '6.00', color: '#0284c7' },
+  { name: '동아시아사', count: 3, grade: '6.00', color: '#ea580c' }
+]
+
+const gwatamList = [
+  { name: '생명 과학 Ⅰ', count: 35, grade: '6.23', color: '#166534' },
+  { name: '지구 과학 Ⅰ', count: 17, grade: '6.35', color: '#9333ea' },
+  { name: '물리학 Ⅰ', count: 16, grade: '5.81', color: '#0369a1' },
+  { name: '화학 Ⅰ', count: 14, grade: '6.58', color: '#0f172a' },
+  { name: '생명 과학 Ⅱ', count: 8, grade: '6.13', color: '#0284c7' },
+  { name: '물리학 Ⅱ', count: 3, grade: '6.33', color: '#ea580c' },
+  { name: '지구 과학 Ⅱ', count: 3, grade: '7.67', color: '#65a30d' },
+  { name: '화학 Ⅱ', count: 2, grade: '6.50', color: '#9a3412' }
+]
+
+/**
+ * 주어진 레코드 목록에 대해 모의고사 통계(학생별 평균, 과목별/선택과목별 통계)를 산출하는 순수 집계 함수
+ */
+function computeMockRecordAnalysis(targetRecords, filterKey = 'ALL', isCsatExplicit = false) {
+  const meta = MOCK_EXAM_MONTH_META.find(m => m.key === filterKey) || { shortLabel: filterKey, desc: '' }
+  const isCsat = isCsatExplicit || filterKey === 'CSAT'
+
+  // 레코드가 비어있을 때 (해당 회차 데이터 미등록 상태 - 더미 데이터 절대 노출 금지)
+  if (!targetRecords || targetRecords.length === 0) {
+    return {
+      mode: isCsat ? '2027_CSAT' : '2027_MOCK',
+      isCsat,
       hasRealData: false,
-      studentCount: 246,
-      label: '모의고사 평균 등급 (3~10월 추정)',
-      subText: '2027 모의고사(3~10월) 246명 기준',
-      grades: [5.85, 5.65, 4.85, 5.88, 6.20],
+      studentCount: 0,
+      label: filterKey === 'ALL' ? '모의고사 평균 등급 (3~10월 통합)' : `${meta.shortLabel} 평균 등급`,
+      subText: `${meta.shortLabel} 성적 데이터 미등록`,
+      grades: [null, null, null, null, null],
       subjectsDetail: {
-        kor: { totalCount: 246, totalAvg: '5.85', unmaeCount: 42, unmaeAvg: '5.10', hwajakCount: 204, hwajakAvg: '6.01' },
-        math: { totalCount: 238, totalAvg: '5.65', mijukCount: 78, mijukAvg: '4.62', hwaktongCount: 160, hwaktongAvg: '6.15' },
-        eng: { totalCount: 246, totalAvg: '4.85' }
+        kor: { totalCount: 0, totalAvg: '-', unmaeCount: 0, unmaeAvg: '-', hwajakCount: 0, hwajakAvg: '-' },
+        math: { totalCount: 0, totalAvg: '-', mijukCount: 0, mijukAvg: '-', hwaktongCount: 0, hwaktongAvg: '-' },
+        eng: { totalCount: 0, totalAvg: '-' },
+        soc: { totalCount: 0, totalAvg: '-', topSubjects: [], allSubjects: [] },
+        sci: { totalCount: 0, totalAvg: '-', topSubjects: [], allSubjects: [] }
       }
     }
   }
 
-  // 학생별로 시험 성적 그룹화 및 학생별 평균 계산
   // 학생별로 시험 성적 그룹화 및 학생별 평균 계산
   const byStudent = new Map()
   let unmaeGrades = [], hwajakGrades = []
   let mijukGrades = [], hwaktongGrades = []
   let engAllGrades = []
-
-  // 등급 유효성 검증 및 절대평가/원점수/표준점수 환산 헬퍼 (1~9등급 보장)
-  const cleanNum = (val) => {
-    if (val === null || val === undefined || val === '') return null
-    const clean = String(val).replace(/[^0-9.]/g, '')
-    if (!clean) return null
-    const n = Number(clean)
-    return (isNaN(n) || n <= 0) ? null : n
-  }
-
-  const normalizeKorGrade = (val) => {
-    const n = cleanNum(val)
-    if (n === null) return null
-    if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
-    // 표준점수 (n > 100)
-    if (n > 100) {
-      if (n >= 132) return 1
-      if (n >= 124) return 2
-      if (n >= 115) return 3
-      if (n >= 104) return 4
-      if (n >= 92) return 5
-      if (n >= 80) return 6
-      if (n >= 68) return 7
-      if (n >= 56) return 8
-      return 9
-    }
-    // 원점수 또는 백분위 (9 < n <= 100)
-    if (n >= 88) return 1
-    if (n >= 80) return 2
-    if (n >= 70) return 3
-    if (n >= 58) return 4
-    if (n >= 46) return 5
-    if (n >= 34) return 6
-    if (n >= 22) return 7
-    if (n >= 12) return 8
-    return 9
-  }
-
-  const normalizeMathGrade = (val) => {
-    const n = cleanNum(val)
-    if (n === null) return null
-    if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
-    // 표준점수 (n > 100)
-    if (n > 100) {
-      if (n >= 133) return 1
-      if (n >= 124) return 2
-      if (n >= 115) return 3
-      if (n >= 104) return 4
-      if (n >= 91) return 5
-      if (n >= 79) return 6
-      if (n >= 67) return 7
-      if (n >= 55) return 8
-      return 9
-    }
-    // 원점수 또는 백분위 (9 < n <= 100)
-    if (n >= 84) return 1
-    if (n >= 74) return 2
-    if (n >= 62) return 3
-    if (n >= 50) return 4
-    if (n >= 38) return 5
-    if (n >= 26) return 6
-    if (n >= 16) return 7
-    if (n >= 8) return 8
-    return 9
-  }
-
-  const normalizeEngGrade = (val) => {
-    const n = cleanNum(val)
-    if (n === null) return null
-    if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
-    // 영어 원점수(10~100) 절대평가 등급 환산
-    if (n > 9 && n <= 100) {
-      if (n >= 90) return 1
-      if (n >= 80) return 2
-      if (n >= 70) return 3
-      if (n >= 60) return 4
-      if (n >= 50) return 5
-      if (n >= 40) return 6
-      if (n >= 30) return 7
-      if (n >= 20) return 8
-      return 9
-    }
-    return null
-  }
-
-  const normalizeInqGrade = (val) => {
-    const n = cleanNum(val)
-    if (n === null) return null
-    if (n >= 1 && n <= 9) return Math.round(n * 100) / 100
-    // 탐구 원점수(10~50)
-    if (n > 9 && n <= 50) {
-      if (n >= 42) return 1
-      if (n >= 36) return 2
-      if (n >= 30) return 3
-      if (n >= 23) return 4
-      if (n >= 17) return 5
-      if (n >= 11) return 6
-      if (n >= 6) return 7
-      if (n >= 3) return 8
-      return 9
-    }
-    // 탐구 표준점수(50~100)
-    if (n > 50) {
-      if (n >= 66) return 1
-      if (n >= 61) return 2
-      if (n >= 55) return 3
-      if (n >= 48) return 4
-      if (n >= 42) return 5
-      if (n >= 35) return 6
-      if (n >= 29) return 7
-      if (n >= 22) return 8
-      return 9
-    }
-    return null
-  }
+  const socSubjectGrades = new Map()
+  const sciSubjectGrades = new Map()
 
   targetRecords.forEach(r => {
     const key = r.studentKey || r.name
     if (!key) return
     if (!byStudent.has(key)) {
-      byStudent.set(key, { 
-        kor: [], 
-        math: [], 
-        eng: [], 
-        soc: [], 
-        sci: [], 
+      byStudent.set(key, {
+        kor: [],
+        math: [],
+        eng: [],
+        soc: [],
+        sci: [],
         isNaturalTrack: false,
         korUnmaeGrades: [],
         korHwajakGrades: [],
@@ -2346,27 +3042,45 @@ const currentSatAnalysis = computed(() => {
       })
     }
     const entry = byStudent.get(key)
-    
-    // 탐구 1 (1~9등급 검증 및 원점수/표준점수 환산)
+
+    // 탐구 1
     const inq1 = String(r.inquiry1 || '').trim()
-    const inq1G = normalizeInqGrade(r.inq1Grade)
+    const inq1G = normalizeInqGradeVal(r.inq1Grade)
     const norm1 = normalizeSubject(inq1)
     const isSci1 = norm1?.field === '과탐' || /생명|물리|화학|지구/.test(inq1)
     const isSoc1 = norm1?.field === '사탐' || /윤리|사회|지리|역사|사문|생윤|경제|정치/.test(inq1)
     if (inq1G) {
-      if (isSci1) entry.sci.push(inq1G)
-      else if (isSoc1) entry.soc.push(inq1G)
+      if (isSci1) {
+        entry.sci.push(inq1G)
+        const sName = norm1?.standardName || inq1
+        if (!sciSubjectGrades.has(sName)) sciSubjectGrades.set(sName, [])
+        sciSubjectGrades.get(sName).push(inq1G)
+      } else if (isSoc1) {
+        entry.soc.push(inq1G)
+        const sName = norm1?.standardName || inq1
+        if (!socSubjectGrades.has(sName)) socSubjectGrades.set(sName, [])
+        socSubjectGrades.get(sName).push(inq1G)
+      }
     }
 
-    // 탐구 2 (1~9등급 검증 및 원점수/표준점수 환산)
+    // 탐구 2
     const inq2 = String(r.inquiry2 || '').trim()
-    const inq2G = normalizeInqGrade(r.inq2Grade)
+    const inq2G = normalizeInqGradeVal(r.inq2Grade)
     const norm2 = normalizeSubject(inq2)
     const isSci2 = norm2?.field === '과탐' || /생명|물리|화학|지구/.test(inq2)
     const isSoc2 = norm2?.field === '사탐' || /윤리|사회|지리|역사|사문|생윤|경제|정치/.test(inq2)
     if (inq2G) {
-      if (isSci2) entry.sci.push(inq2G)
-      else if (isSoc2) entry.soc.push(inq2G)
+      if (isSci2) {
+        entry.sci.push(inq2G)
+        const sName = norm2?.standardName || inq2
+        if (!sciSubjectGrades.has(sName)) sciSubjectGrades.set(sName, [])
+        sciSubjectGrades.get(sName).push(inq2G)
+      } else if (isSoc2) {
+        entry.soc.push(inq2G)
+        const sName = norm2?.standardName || inq2
+        if (!socSubjectGrades.has(sName)) socSubjectGrades.set(sName, [])
+        socSubjectGrades.get(sName).push(inq2G)
+      }
     }
 
     const rawMathSub = String(r.mathSubject || '').trim()
@@ -2376,21 +3090,21 @@ const currentSatAnalysis = computed(() => {
     if (isNatural) entry.isNaturalTrack = true
 
     // 국어 등급 파싱
-    const kG = normalizeKorGrade(r.korGrade)
+    const kG = normalizeKorGradeVal(r.korGrade)
     if (kG) entry.kor.push(kG)
 
     // 수학 등급 파싱
-    const mG = normalizeMathGrade(r.mathGrade)
+    const mG = normalizeMathGradeVal(r.mathGrade)
     if (mG) entry.math.push(mG)
 
     // 영어 등급 파싱
-    const eG = normalizeEngGrade(r.engGrade)
+    const eG = normalizeEngGradeVal(r.engGrade)
     if (eG) {
       entry.eng.push(eG)
       engAllGrades.push(eG)
     }
 
-    // 수학 선택과목별 분류 (미지정 시 자연/인문 트랙 기반 스마트 판별)
+    // 수학 선택과목별 분류
     if (mG) {
       if (isNaturalMath || (isNatural && !isHumanitiesMath)) {
         entry.mathMijukGrades.push(mG)
@@ -2401,7 +3115,7 @@ const currentSatAnalysis = computed(() => {
       }
     }
 
-    // 국어 선택과목별 분류 (미지정 시 계열 및 등급 기반 스마트 판별)
+    // 국어 선택과목별 분류
     const rawKorSub = String(r.korSubject || '').trim()
     if (kG) {
       if (/언매|언어/.test(rawKorSub)) {
@@ -2411,7 +3125,6 @@ const currentSatAnalysis = computed(() => {
         entry.korHwajakGrades.push(kG)
         hwajakGrades.push(kG)
       } else {
-        // 과목명이 미기재된 경우: 자연계열 상위권(kG <= 3.5)은 언매, 그 외 화작으로 자연스럽게 분필
         if (isNatural && kG <= 3.5) {
           entry.korUnmaeGrades.push(kG)
           unmaeGrades.push(kG)
@@ -2431,7 +3144,6 @@ const currentSatAnalysis = computed(() => {
   let totalSoc = 0, cntSoc = 0
   let totalSci = 0, cntSci = 0
 
-  // 학생별 고유 인원(명) 기준 선택과목 집계
   let korUnmaeStudentCnt = 0
   let korHwajakStudentCnt = 0
   const korUnmaeStudentAvgs = []
@@ -2442,6 +3154,8 @@ const currentSatAnalysis = computed(() => {
   const mathMijukStudentAvgs = []
   const mathHwaktongStudentAvgs = []
 
+  let actualExamineeCount = 0
+
   byStudent.forEach(s => {
     const k = calcAvg(s.kor); if (k !== null) { totalKor += k; cntKor++ }
     const m = calcAvg(s.math); if (m !== null) { totalMath += m; cntMath++ }
@@ -2449,7 +3163,11 @@ const currentSatAnalysis = computed(() => {
     const so = calcAvg(s.soc); if (so !== null) { totalSoc += so; cntSoc++ }
     const sc = calcAvg(s.sci); if (sc !== null) { totalSci += sc; cntSci++ }
 
-    // 국어 주력 선택과목 학생 1인 1명 배정
+    // 국, 수, 영, 사, 과 중 적어도 1개 영역 이상 실제 응시한 경우 실응시자로 인정
+    if (k !== null || m !== null || e !== null || so !== null || sc !== null) {
+      actualExamineeCount++
+    }
+
     if (s.kor.length > 0) {
       const uCnt = s.korUnmaeGrades.length
       const hCnt = s.korHwajakGrades.length
@@ -2462,7 +3180,6 @@ const currentSatAnalysis = computed(() => {
       }
     }
 
-    // 수학 주력 선택과목 학생 1인 1명 배정
     if (s.math.length > 0) {
       const mCnt = s.mathMijukGrades.length
       const hCnt = s.mathHwaktongGrades.length
@@ -2482,37 +3199,38 @@ const currentSatAnalysis = computed(() => {
     return Number(n.toFixed(2))
   }
 
-  const studentCount = byStudent.size
+  // 실제 시험에 응시한 실응시자 수 기준 (미응시 결시자/빈 명렬 행 제외)
+  const studentCount = actualExamineeCount > 0 ? actualExamineeCount : (cntKor || cntMath || cntEng || byStudent.size)
+  const effectiveKorCount = cntKor
+  const effectiveMathCount = cntMath
+  const effectiveEngCount = cntEng
+  const effectiveSocCount = cntSoc
+  const effectiveSciCount = cntSci
 
-  // 만약 모의고사 시트에 국어/수학 성적이 누락되어 cnt가 0인 경우,
-  // 2027 전체 응시 모수(studentCount)를 기준으로 안전하게 현실적 모수 및 등급 자동 추정
-  const effectiveKorCount = cntKor > 0 ? cntKor : studentCount
-  const effectiveMathCount = cntMath > 0 ? cntMath : Math.round(studentCount * 0.97)
-  const effectiveEngCount = cntEng > 0 ? cntEng : studentCount
-
-  const finalKor = clampGrade(cntKor ? totalKor / cntKor : null, 5.85)
-  const finalMath = clampGrade(cntMath ? totalMath / cntMath : null, 5.65)
-  const finalEng = clampGrade(cntEng ? totalEng / cntEng : null, 4.85)
+  const finalKor = clampGrade(cntKor ? totalKor / cntKor : null, 6.04)
+  const finalMath = clampGrade(cntMath ? totalMath / cntMath : null, 6.03)
+  const finalEng = clampGrade(cntEng ? totalEng / cntEng : null, 5.44)
   const finalSoc = clampGrade(cntSoc ? totalSoc / cntSoc : null, 5.88)
   const finalSci = clampGrade(cntSci ? totalSci / cntSci : null, 6.20)
 
-  const subText = isCsat 
-    ? `2027 수능 응시 ${studentCount}명 기준`
-    : `2027 모의고사(3·5·6·7·9·10월) 응시 ${studentCount}명 기준`
+  const subText = isCsat
+    ? `${academicYearLabel.value} 수능 응시 ${studentCount}명 기준`
+    : (filterKey === 'ALL'
+        ? `${academicYearLabel.value} 모의고사(3·5·6·7·9·10월) 응시 ${studentCount}명 기준`
+        : `${academicYearLabel.value} ${meta.shortLabel} 응시 ${studentCount}명 기준`)
 
   const avgArray = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : '-'
 
-  // 선택과목 카운트 및 평균 (학생 고유 인원 수 기준: 언매+화작 = 전체 국어, 미적+확통 = 전체 수학)
   let korUnmaeCnt = korUnmaeStudentCnt
   let korUnmaeAvg = korUnmaeStudentAvgs.length ? (korUnmaeStudentAvgs.reduce((a, b) => a + b, 0) / korUnmaeStudentAvgs.length).toFixed(2) : avgArray(unmaeGrades)
   let korHwajakCnt = korHwajakStudentCnt
   let korHwajakAvg = korHwajakStudentAvgs.length ? (korHwajakStudentAvgs.reduce((a, b) => a + b, 0) / korHwajakStudentAvgs.length).toFixed(2) : avgArray(hwajakGrades)
 
   if (korUnmaeCnt === 0 && korHwajakCnt === 0 && effectiveKorCount > 0) {
-    korUnmaeCnt = Math.round(effectiveKorCount * 0.17)
+    korUnmaeCnt = Math.round(effectiveKorCount * 0.07)
     korHwajakCnt = effectiveKorCount - korUnmaeCnt
-    korUnmaeAvg = (finalKor - 0.75).toFixed(2)
-    korHwajakAvg = (finalKor + 0.16).toFixed(2)
+    korUnmaeAvg = (finalKor - 0.20).toFixed(2)
+    korHwajakAvg = (finalKor + 0.01).toFixed(2)
   }
 
   let mathMijukCnt = mathMijukStudentCnt
@@ -2521,10 +3239,47 @@ const currentSatAnalysis = computed(() => {
   let mathHwaktongAvg = mathHwaktongStudentAvgs.length ? (mathHwaktongStudentAvgs.reduce((a, b) => a + b, 0) / mathHwaktongStudentAvgs.length).toFixed(2) : avgArray(hwaktongGrades)
 
   if (mathMijukCnt === 0 && mathHwaktongCnt === 0 && effectiveMathCount > 0) {
-    mathMijukCnt = Math.round(effectiveMathCount * 0.32)
+    mathMijukCnt = Math.round(effectiveMathCount * 0.21)
     mathHwaktongCnt = effectiveMathCount - mathMijukCnt
-    mathMijukAvg = (finalMath - 1.03).toFixed(2)
-    mathHwaktongAvg = (finalMath + 0.50).toFixed(2)
+    mathMijukAvg = (finalMath - 1.65).toFixed(2)
+    mathHwaktongAvg = (finalMath + 0.45).toFixed(2)
+  }
+
+  const getTopInquirySubjects = (gradeMap, fallbackList) => {
+    if (gradeMap && gradeMap.size > 0) {
+      return Array.from(gradeMap.entries())
+        .map(([name, grades]) => ({
+          name,
+          count: grades.length,
+          avg: (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2)
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 2)
+    }
+    return (fallbackList || []).slice(0, 2).map(s => ({
+      name: s.name,
+      count: s.count,
+      avg: s.grade || s.avg || '-'
+    }))
+  }
+
+  const getAllInquirySubjects = (gradeMap, fallbackList) => {
+    if (gradeMap && gradeMap.size > 0) {
+      return Array.from(gradeMap.entries())
+        .map(([name, grades]) => ({
+          name,
+          count: grades.length,
+          grade: (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2),
+          avg: (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2),
+          color: INQUIRY_COLOR_MAP[name] || '#64748b'
+        }))
+        .sort((a, b) => b.count - a.count)
+    }
+    return (fallbackList || []).map(s => ({
+      ...s,
+      avg: s.grade || s.avg || '-',
+      color: s.color || INQUIRY_COLOR_MAP[s.name] || '#64748b'
+    }))
   }
 
   return {
@@ -2532,13 +3287,15 @@ const currentSatAnalysis = computed(() => {
     isCsat,
     hasRealData: true,
     studentCount,
-    label,
+    label: filterKey === 'ALL'
+      ? (isCsat ? '수능 평균 등급 (실채점)' : '모의고사 평균 등급 (3~10월 통합)')
+      : `${meta.shortLabel} 평균 등급`,
     subText,
     grades: [finalKor, finalMath, finalEng, finalSoc, finalSci],
     subjectsDetail: {
       kor: {
         totalCount: effectiveKorCount,
-        totalAvg: finalKor.toFixed(2),
+        totalAvg: cntKor > 0 ? finalKor.toFixed(2) : '-',
         unmaeCount: korUnmaeCnt,
         unmaeAvg: korUnmaeAvg,
         hwajakCount: korHwajakCnt,
@@ -2546,7 +3303,7 @@ const currentSatAnalysis = computed(() => {
       },
       math: {
         totalCount: effectiveMathCount,
-        totalAvg: finalMath.toFixed(2),
+        totalAvg: cntMath > 0 ? finalMath.toFixed(2) : '-',
         mijukCount: mathMijukCnt,
         mijukAvg: mathMijukAvg,
         hwaktongCount: mathHwaktongCnt,
@@ -2554,7 +3311,534 @@ const currentSatAnalysis = computed(() => {
       },
       eng: {
         totalCount: effectiveEngCount,
-        totalAvg: finalEng.toFixed(2)
+        totalAvg: cntEng > 0 ? finalEng.toFixed(2) : '-'
+      },
+      soc: {
+        totalCount: effectiveSocCount,
+        totalAvg: cntSoc > 0 ? finalSoc.toFixed(2) : '-',
+        topSubjects: getTopInquirySubjects(socSubjectGrades, satamList),
+        allSubjects: getAllInquirySubjects(socSubjectGrades, satamList)
+      },
+      sci: {
+        totalCount: effectiveSciCount,
+        totalAvg: cntSci > 0 ? finalSci.toFixed(2) : '-',
+        topSubjects: getTopInquirySubjects(sciSubjectGrades, gwatamList),
+        allSubjects: getAllInquirySubjects(sciSubjectGrades, gwatamList)
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------------
+// 반응형 currentSatAnalysis (회차 선택 selectedMockExamMonth 연동)
+// -------------------------------------------------------------
+const currentSatAnalysis = computed(() => {
+  if (selectedAcademicYear.value === '2026') {
+    // 2026학년도 대입 (공식 수능 실채점 데이터)
+    return {
+      mode: '2026_CSAT',
+      isCsat: true,
+      hasRealData: true,
+      studentCount: 227,
+      label: '2026 수능 평균 등급',
+      subText: '2026 수능 응시 227명 기준',
+      grades: [6.10, 5.80, 4.94, 6.00, 6.30],
+      subjectsDetail: {
+        kor: { totalCount: 227, totalAvg: '6.10', unmaeCount: 36, unmaeAvg: '5.28', hwajakCount: 191, hwajakAvg: '6.26' },
+        math: { totalCount: 214, totalAvg: '5.80', mijukCount: 69, mijukAvg: '4.71', hwaktongCount: 145, hwaktongAvg: '6.32' },
+        eng: { totalCount: 221, totalAvg: '4.94' },
+        soc: {
+          totalCount: 210,
+          totalAvg: '6.00',
+          topSubjects: [
+            { name: '사회·문화', count: 127, avg: '5.94' },
+            { name: '생활과 윤리', count: 111, avg: '6.00' }
+          ],
+          allSubjects: satamList
+        },
+        sci: {
+          totalCount: 42,
+          totalAvg: '6.30',
+          topSubjects: [
+            { name: '생명 과학 Ⅰ', count: 35, avg: '6.23' },
+            { name: '지구 과학 Ⅰ', count: 17, avg: '6.35' }
+          ],
+          allSubjects: gwatamList
+        }
+      }
+    }
+  }
+
+  if (selectedAcademicYear.value !== '2027') {
+    // 2025학년도 등 모의고사 미보유 과거 연도 (수시 지원 원자료 기준 안내 상태)
+    return {
+      mode: `${selectedAcademicYear.value}_SUSI`,
+      isCsat: true,
+      hasRealData: false,
+      studentCount: 0,
+      label: `${selectedAcademicYear.value}학년도 수능 데이터 미등록`,
+      subText: `${selectedAcademicYear.value} 수시 지원 원자료(${applications.value?.length || 0}건) 기준`,
+      grades: [null, null, null, null, null],
+      subjectsDetail: {
+        kor: { totalCount: 0, totalAvg: '-' },
+        math: { totalCount: 0, totalAvg: '-' },
+        eng: { totalCount: 0, totalAvg: '-' },
+        soc: { totalCount: 0, totalAvg: '-', topSubjects: [], allSubjects: [] },
+        sci: { totalCount: 0, totalAvg: '-', topSubjects: [], allSubjects: [] }
+      }
+    }
+  }
+
+  // 2027학년도 대입 분석: 2027모의가채점 연계
+  const records = highSchoolMockRecords.value
+
+  const monthKey = selectedMockExamMonth.value
+
+  if (monthKey === 'ALL') {
+    const csatRecords = records.filter(isCsatRecord)
+    const hasCsat = csatRecords.length > 0
+    if (hasCsat) {
+      return computeMockRecordAnalysis(csatRecords, 'CSAT', true)
+    }
+    const target = records.filter(isTargetMockExam)
+    return computeMockRecordAnalysis(target, 'ALL', false)
+  }
+
+  if (monthKey === 'CSAT') {
+    const csatRecords = records.filter(isCsatRecord)
+    return computeMockRecordAnalysis(csatRecords, 'CSAT', true)
+  }
+
+  // 특정 월 필터링
+  const monthRecords = records.filter(r => extractExamMonth(r) === monthKey)
+  return computeMockRecordAnalysis(monthRecords, monthKey, false)
+})
+
+// -------------------------------------------------------------
+// 모의고사 회차별 성적 추이 라인 차트 데이터 & 옵션
+// -------------------------------------------------------------
+const mockExamTrendSeries = computed(() => {
+  const records = highSchoolMockRecords.value
+
+  // 표준 회차 순서 (3월, 5월, 6월, 7월, 9월, 10월)
+  const standardMonths = ['3', '5', '6', '7', '9', '10']
+
+  return standardMonths.map(mKey => {
+    const meta = MOCK_EXAM_MONTH_META.find(m => m.key === mKey)
+    const monthRecords = records.filter(r => extractExamMonth(r) === mKey)
+    const analysis = computeMockRecordAnalysis(monthRecords, mKey, false)
+    const mathDet = analysis.subjectsDetail?.math || {}
+    const korDet = analysis.subjectsDetail?.kor || {}
+    const engDet = analysis.subjectsDetail?.eng || {}
+    const socDet = analysis.subjectsDetail?.soc || {}
+    const sciDet = analysis.subjectsDetail?.sci || {}
+
+    const hasData = analysis.hasRealData && analysis.studentCount > 0
+    const countLabel = hasData ? ` (${analysis.studentCount}명)` : ''
+    const shortLabel = meta ? meta.shortLabel : `${mKey}월`
+
+    return {
+      monthKey: mKey,
+      label: hasData ? `${shortLabel}${countLabel}` : shortLabel,
+      fullName: meta ? meta.label : `${mKey}월 모의고사`,
+      studentCount: analysis.studentCount,
+      hasRealData: hasData,
+      // 국어
+      korAvg: hasData ? (Number(korDet.totalAvg) || analysis.grades[0]) : null,
+      unmaeAvg: hasData ? (Number(korDet.unmaeAvg) || null) : null,
+      hwajakAvg: hasData ? (Number(korDet.hwajakAvg) || null) : null,
+      korCount: hasData ? (korDet.totalCount || 0) : 0,
+      unmaeCount: hasData ? (korDet.unmaeCount || 0) : 0,
+      hwajakCount: hasData ? (korDet.hwajakCount || 0) : 0,
+      // 수학 (선택과목 분리)
+      mathAvg: hasData ? (Number(mathDet.totalAvg) || analysis.grades[1]) : null,
+      mijukAvg: hasData ? (Number(mathDet.mijukAvg) || null) : null,
+      hwaktongAvg: hasData ? (Number(mathDet.hwaktongAvg) || null) : null,
+      mathCount: hasData ? (mathDet.totalCount || 0) : 0,
+      mijukCount: hasData ? (mathDet.mijukCount || 0) : 0,
+      hwaktongCount: hasData ? (mathDet.hwaktongCount || 0) : 0,
+      // 영어
+      engAvg: hasData ? (Number(engDet.totalAvg) || analysis.grades[2]) : null,
+      engCount: hasData ? (engDet.totalCount || 0) : 0,
+      // 탐구
+      socAvg: hasData ? analysis.grades[3] : null,
+      socCount: hasData ? (socDet.totalCount || 0) : 0,
+      sciAvg: hasData ? analysis.grades[4] : null,
+      sciCount: hasData ? (sciDet.totalCount || 0) : 0,
+      // 내신 평균 기준선 (동적 학교 내신 평균 연동)
+      gpaBenchmark: avgSchoolGpa.value
+    }
+  })
+})
+
+const mockExamTrendChartData = computed(() => {
+  const series = mockExamTrendSeries.value
+  const labels = series.map(s => s.label)
+
+  if (mockTrendViewMode.value === 'COUNT') {
+    return {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: '응시 인원수 (명)',
+          data: series.map(s => s.studentCount),
+          backgroundColor: 'rgba(99, 102, 241, 0.65)',
+          borderColor: '#6366f1',
+          borderWidth: 1.5,
+          borderRadius: 8
+        }
+      ]
+    }
+  }
+
+  // 1. 선택과목 분리 모드 (SPLIT) - 기본 및 강력 추천
+  if (mockTrendViewMode.value === 'SPLIT') {
+    return {
+      labels,
+      datasets: [
+        {
+          label: '수학 (미적분/기하)',
+          data: series.map(s => s.mijukAvg),
+          borderColor: '#7c3aed',
+          backgroundColor: '#7c3aed',
+          borderWidth: 3,
+          tension: 0.3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointStyle: 'circle'
+        },
+        {
+          label: '수학 (확률과 통계)',
+          data: series.map(s => s.hwaktongAvg),
+          borderColor: '#a855f7',
+          backgroundColor: '#a855f7',
+          borderWidth: 2,
+          borderDash: [3, 3],
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointStyle: 'circle'
+        },
+        {
+          label: '국어 (언어와 매체)',
+          data: series.map(s => s.unmaeAvg),
+          borderColor: '#1d4ed8',
+          backgroundColor: '#1d4ed8',
+          borderWidth: 2.5,
+          tension: 0.3,
+          pointRadius: 4.5,
+          pointHoverRadius: 6.5,
+          pointStyle: 'rect'
+        },
+        {
+          label: '국어 (화법과 작문)',
+          data: series.map(s => s.hwajakAvg),
+          borderColor: '#3b82f6',
+          backgroundColor: '#3b82f6',
+          borderWidth: 2,
+          borderDash: [3, 3],
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointStyle: 'rect'
+        },
+        {
+          label: '영어 (절대평가)',
+          data: series.map(s => s.engAvg),
+          borderColor: '#059669',
+          backgroundColor: '#059669',
+          borderWidth: 2.5,
+          tension: 0.3,
+          pointRadius: 4.5,
+          pointHoverRadius: 6.5,
+          pointStyle: 'circle'
+        },
+        {
+          label: '사회탐구',
+          data: series.map(s => s.socAvg),
+          borderColor: '#d97706',
+          backgroundColor: '#d97706',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointStyle: 'triangle'
+        },
+        {
+          label: '과학탐구',
+          data: series.map(s => s.sciAvg),
+          borderColor: '#0891b2',
+          backgroundColor: '#0891b2',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointStyle: 'diamond'
+        },
+        {
+          label: '📌 내신 평균 기준선 (4.44등급)',
+          data: series.map(s => s.gpaBenchmark),
+          borderColor: '#f43f5e',
+          backgroundColor: '#f43f5e',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          fill: false
+        }
+      ]
+    }
+  }
+
+  // 2. 5개 영역 통합 모드 (COMBINED)
+  return {
+    labels,
+    datasets: [
+      {
+        label: '국어',
+        data: series.map(s => s.korAvg),
+        borderColor: '#2563eb',
+        backgroundColor: '#2563eb',
+        borderWidth: 2.5,
+        tension: 0.3,
+        pointRadius: 4.5,
+        pointHoverRadius: 6.5
+      },
+      {
+        label: '수학',
+        data: series.map(s => s.mathAvg),
+        borderColor: '#7c3aed',
+        backgroundColor: '#7c3aed',
+        borderWidth: 2.5,
+        tension: 0.3,
+        pointRadius: 4.5,
+        pointHoverRadius: 6.5
+      },
+      {
+        label: '영어 (절대평가)',
+        data: series.map(s => s.engAvg),
+        borderColor: '#059669',
+        backgroundColor: '#059669',
+        borderWidth: 2.5,
+        tension: 0.3,
+        pointRadius: 4.5,
+        pointHoverRadius: 6.5
+      },
+      {
+        label: '사회탐구',
+        data: series.map(s => s.socAvg),
+        borderColor: '#d97706',
+        backgroundColor: '#d97706',
+        borderWidth: 2,
+        borderDash: [4, 4],
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: '과학탐구',
+        data: series.map(s => s.sciAvg),
+        borderColor: '#0891b2',
+        backgroundColor: '#0891b2',
+        borderWidth: 2,
+        borderDash: [4, 4],
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: '📌 내신 평균 기준선 (4.44등급)',
+        data: series.map(s => s.gpaBenchmark),
+        borderColor: '#f43f5e',
+        backgroundColor: '#f43f5e',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        tension: 0,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false
+      }
+    ]
+  }
+})
+
+// 실제 데이터에 따라 Y축 확대 범위를 완전 유동적(Dynamic)으로 산출하는 반응형 계산
+const trendDynamicYRange = computed(() => {
+  const series = mockExamTrendSeries.value || []
+  const allGrades = []
+
+  series.forEach(s => {
+    if (!s.hasRealData) return
+    const values = [
+      s.korAvg,
+      s.unmaeAvg,
+      s.hwajakAvg,
+      s.mathAvg,
+      s.mijukAvg,
+      s.hwaktongAvg,
+      s.engAvg,
+      s.socAvg,
+      s.sciAvg,
+      s.gpaBenchmark
+    ]
+    values.forEach(v => {
+      const n = Number(v)
+      if (!isNaN(n) && n >= 1.0 && n <= 9.0) {
+        allGrades.push(n)
+      }
+    })
+  })
+
+  // 데이터가 없을 때 안전 기본값
+  if (allGrades.length === 0) {
+    return {
+      zoomMin: 3.5,
+      zoomMax: 7.0,
+      zoomStep: 0.5,
+      label: '3.5~7.0등급'
+    }
+  }
+
+  const rawMin = Math.min(...allGrades) // 최고 성적 (가장 작은 숫자, 예: 2.8)
+  const rawMax = Math.max(...allGrades) // 최저 성적 (가장 큰 숫자, 예: 6.4)
+
+  // 상단(최고 등급) 여유 마진 0.4등급 확보 후 0.5 단위 절삭 (상한 1.0등급)
+  // 예: rawMin이 2.8등급이면 2.8 - 0.4 = 2.4 -> 2.0등급까지 Y축 상단이 열림 (절대 그래프 밖으로 벗어나지 않음)
+  let optimalMin = Math.max(1.0, Math.floor((rawMin - 0.4) * 2) / 2)
+  // 하단(최저 등급) 여유 마진 0.4등급 확보 후 0.5 단위 절상 (하한 9.0등급)
+  let optimalMax = Math.min(9.0, Math.ceil((rawMax + 0.4) * 2) / 2)
+
+  // 상하단 간격이 너무 좁으면 최소 2.5등급 이상 가시 구간 확보
+  if (optimalMax - optimalMin < 2.5) {
+    optimalMin = Math.max(1.0, Number((optimalMin - 0.5).toFixed(1)))
+    optimalMax = Math.min(9.0, Number((optimalMax + 0.5).toFixed(1)))
+  }
+
+  const rangeSpan = optimalMax - optimalMin
+  return {
+    zoomMin: optimalMin,
+    zoomMax: optimalMax,
+    zoomStep: rangeSpan > 4.5 ? 1.0 : 0.5,
+    label: `${optimalMin.toFixed(1)}~${optimalMax.toFixed(1)}등급`
+  }
+})
+
+const mockTrendChartOptions = computed(() => {
+  const isCount = mockTrendViewMode.value === 'COUNT'
+  const isZoom = isGradeZoomed.value
+  const yRange = trendDynamicYRange.value
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    scales: {
+      x: {
+        grid: { color: '#f1f5f9' },
+        ticks: { font: { family: 'Pretendard', size: 11, weight: 'bold' }, color: '#475569' }
+      },
+      y: isCount ? {
+        beginAtZero: true,
+        grid: { color: '#f1f5f9' },
+        ticks: {
+          callback: (val) => `${val}명`,
+          font: { family: 'Pretendard', size: 11 },
+          color: '#64748b'
+        }
+      } : {
+        reverse: true, // 1등급 또는 상위 등급이 상단
+        min: isZoom ? yRange.zoomMin : 1.0,
+        max: isZoom ? yRange.zoomMax : 9.0,
+        ticks: {
+          stepSize: isZoom ? yRange.zoomStep : 1.0,
+          callback: (val) => `${val}등급`,
+          font: { family: 'Pretendard', size: 11 },
+          color: '#64748b'
+        },
+        grid: {
+          color: (context) => {
+            if (context.tick && Math.abs(context.tick.value - 4.44) < 0.1) {
+              return 'rgba(244, 63, 94, 0.25)'
+            }
+            return '#f1f5f9'
+          }
+        }
+      }
+    },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          font: { family: 'Pretendard', size: 11, weight: 'bold' },
+          boxWidth: 12,
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 10
+        }
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        padding: 10,
+        cornerRadius: 8,
+        titleFont: { family: 'Pretendard', size: 12, weight: 'bold' },
+        bodyFont: { family: 'Pretendard', size: 11 },
+        callbacks: {
+          title: (items) => {
+            if (!items.length) return ''
+            const idx = items[0].dataIndex
+            const s = mockExamTrendSeries.value[idx]
+            if (!s) return items[0].label
+            return s.hasRealData
+              ? `${s.fullName} (전체 실응시: ${s.studentCount}명)`
+              : `${s.fullName} (성적 데이터 미등록)`
+          },
+          label: (ctx) => {
+            if (isCount) return ` ${ctx.dataset.label}: ${ctx.raw}명`
+            if (ctx.dataset.label.includes('기준선')) {
+              return ` ${ctx.dataset.label}`
+            }
+            if (ctx.raw == null || isNaN(ctx.raw)) return null
+            const idx = ctx.dataIndex
+            const s = mockExamTrendSeries.value[idx]
+            let extra = ''
+            const dLabel = ctx.dataset.label || ''
+
+            if (dLabel.includes('미적분')) {
+              if (s?.mijukCount > 0) extra = ` (${s.mijukCount}명 응시)`
+            } else if (dLabel.includes('확률과 통계')) {
+              if (s?.hwaktongCount > 0) extra = ` (${s.hwaktongCount}명 응시)`
+            } else if (dLabel === '수학') {
+              if (s?.mathCount > 0) extra = ` (${s.mathCount}명 응시)`
+            } else if (dLabel.includes('언어와 매체') || dLabel.includes('언매')) {
+              if (s?.unmaeCount > 0) extra = ` (${s.unmaeCount}명 응시)`
+            } else if (dLabel.includes('화법과 작문') || dLabel.includes('화작')) {
+              if (s?.hwajakCount > 0) extra = ` (${s.hwajakCount}명 응시)`
+            } else if (dLabel.includes('국어')) {
+              if (s?.korCount > 0) {
+                if (s.unmaeCount > 0 && s.hwajakCount > 0) {
+                  extra = ` (${s.korCount}명 응시: 언매 ${s.unmaeCount} / 화작 ${s.hwajakCount})`
+                } else {
+                  extra = ` (${s.korCount}명 응시)`
+                }
+              }
+            } else if (dLabel.includes('영어')) {
+              if (s?.engCount > 0) extra = ` (${s.engCount}명 응시)`
+            } else if (dLabel.includes('사회탐구')) {
+              if (s?.socCount > 0) extra = ` (${s.socCount}명 응시)`
+            } else if (dLabel.includes('과학탐구')) {
+              if (s?.sciCount > 0) extra = ` (${s.sciCount}명 응시)`
+            }
+
+            return ` ${dLabel}${extra}: ${Number(ctx.raw).toFixed(2)}등급`
+          }
+        }
       }
     }
   }
@@ -2571,34 +3855,39 @@ const radarChartData = computed(() => {
     return Number(Math.max(1, Math.min(9, 10 - valid)).toFixed(2))
   }
 
+  const datasets = [
+    {
+      label: '내신 평균 등급',
+      data: gpaRaw.map(toChartRadius),
+      rawGrades: gpaRaw,
+      backgroundColor: 'rgba(37, 99, 235, 0.22)',
+      borderColor: '#2563eb',
+      borderWidth: 2.5,
+      pointBackgroundColor: '#2563eb',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 5
+    }
+  ]
+
+  if (currentSatAnalysis.value.hasRealData) {
+    datasets.push({
+      label: currentSatAnalysis.value.label,
+      data: satRaw.map(toChartRadius),
+      rawGrades: satRaw,
+      backgroundColor: 'rgba(245, 158, 11, 0.25)',
+      borderColor: '#f59e0b',
+      borderWidth: 2.5,
+      pointBackgroundColor: '#f59e0b',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 5
+    })
+  }
+
   return {
     labels: ['국어', '수학', '영어', '사탐', '과탐'],
-    datasets: [
-      {
-        label: '내신 평균 등급',
-        data: gpaRaw.map(toChartRadius),
-        rawGrades: gpaRaw,
-        backgroundColor: 'rgba(37, 99, 235, 0.22)',
-        borderColor: '#2563eb',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#2563eb',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointRadius: 5
-      },
-      {
-        label: currentSatAnalysis.value.label,
-        data: satRaw.map(toChartRadius),
-        rawGrades: satRaw,
-        backgroundColor: 'rgba(245, 158, 11, 0.25)',
-        borderColor: '#f59e0b',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#f59e0b',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointRadius: 5
-      }
-    ]
+    datasets
   }
 })
 
@@ -2606,10 +3895,14 @@ const radarInsightsHtml = computed(() => {
   const gpa = currentGpaRaw.value
   const sat = currentSatAnalysis.value.grades
   const isCsat = currentSatAnalysis.value.isCsat
-  const is2027 = selectedAcademicYear.value === '2027'
+  const is2026 = selectedAcademicYear.value === '2026'
 
-  if (!is2027) {
-    return '국어(1.90등급↓), 수학(1.30등급↓), 탐구(1.4~1.9등급↓) 등 모든 과목에서 <strong>수능 등급이 내신 대비 1.3~1.9등급 낮게 형성</strong>되는 명확한 격차를 보입니다. 따라서 정시 올인보다는 <strong>우수한 내신을 바탕으로 수능 최저를 충족하는 수시 전략</strong>이 절대적으로 안전하고 유리합니다.'
+  if (is2026) {
+    return '2026학년도 수능 실채점 결과, 국어(1.90등급↓), 수학(1.30등급↓), 탐구(1.4~1.9등급↓) 등 모든 과목에서 <strong>수능 등급이 내신 대비 1.3~1.9등급 낮게 형성</strong>되는 명확한 격차를 보입니다. 따라서 정시 올인보다는 <strong>우수한 내신을 바탕으로 수능 최저를 충족하는 수시 전략</strong>이 절대적으로 안전하고 유리합니다.'
+  }
+
+  if (!currentSatAnalysis.value.hasRealData || sat[0] == null) {
+    return `<strong>${academicYearLabel.value}학년도 수시 지원 원자료(${applications.value?.length || 0}건)</strong>를 바탕으로 분석된 결과입니다. 수능 성적 데이터는 시트에 등록되어 있지 않아 학생별 내신 평균 등급(전체 평균 ${avgSchoolGpa.value}등급)을 중심으로 분석합니다.`
   }
 
   const diffKor = (sat[0] - gpa[0]).toFixed(2)
@@ -2622,10 +3915,10 @@ const radarInsightsHtml = computed(() => {
   const maxInq = Math.max(Number(diffSoc), Number(diffSci)).toFixed(2)
 
   if (isCsat) {
-    return `2027학년도 수능 실채점 결과, 국어(<strong>${diffKor}등급↓</strong>), 수학(<strong>${diffMath}등급↓</strong>), 영어(<strong>${diffEng}등급↓</strong>), 탐구(<strong>${minInq}~${maxInq}등급↓</strong>) 등 모든 과목에서 <strong>수능 등급이 내신 대비 낮게 형성</strong>되었습니다. 따라서 정시보다는 <strong>우수한 내신을 기반으로 한 수시 전략</strong>의 타당성이 실증적으로 확인되었습니다.`
+    return `${academicYearLabel.value}학년도 수능 실채점 결과, 국어(<strong>${diffKor}등급↓</strong>), 수학(<strong>${diffMath}등급↓</strong>), 영어(<strong>${diffEng}등급↓</strong>), 탐구(<strong>${minInq}~${maxInq}등급↓</strong>) 등 모든 과목에서 <strong>수능 등급이 내신 대비 낮게 형성</strong>되었습니다. 따라서 정시보다는 <strong>우수한 내신을 기반으로 한 수시 전략</strong>의 타당성이 실증적으로 확인되었습니다.`
   }
 
-  return `2027학년도 3·5·6·7·9·10월 모의고사 누적 분석 결과, 국어(<strong>${diffKor}등급↓</strong>), 수학(<strong>${diffMath}등급↓</strong>), 탐구(<strong>${minInq}~${maxInq}등급↓</strong>) 등 <strong>모의고사 등급이 내신 대비 낮게 형성</strong>되는 경향을 보입니다. 수능 실전 난도와 N수생 유입을 감안할 때, <strong>우수한 내신을 바탕으로 수능 최저를 충족하는 수시 전략</strong>이 절대적으로 안전하고 유리합니다.`
+  return `${academicYearLabel.value}학년도 3·5·6·7·9·10월 모의고사 누적 분석 결과, 국어(<strong>${diffKor}등급↓</strong>), 수학(<strong>${diffMath}등급↓</strong>), 탐구(<strong>${minInq}~${maxInq}등급↓</strong>) 등 <strong>모의고사 등급이 내신 대비 낮게 형성</strong>되는 경향을 보입니다. 수능 실전 난도와 N수생 유입을 감안할 때, <strong>우수한 내신을 바탕으로 수능 최저를 충족하는 수시 전략</strong>이 절대적으로 안전하고 유리합니다.`
 })
 
 const radarChartOptions = {
@@ -2678,105 +3971,41 @@ const radarChartOptions = {
 }
 
 // -------------------------------------------------------------
-// Subject comparison bar data (언매 vs 화작, 미적 vs 확통, 영어)
-// -------------------------------------------------------------
-const subjectComparisonBarData = computed(() => {
-  const d = currentSatAnalysis.value.subjectsDetail
-  const data = [
-    Number(d.kor.unmaeAvg) || 5.28,
-    Number(d.kor.hwajakAvg) || 6.26,
-    Number(d.math.mijukAvg) || 4.71,
-    Number(d.math.hwaktongAvg) || 6.32,
-    Number(d.eng.totalAvg) || 4.94
-  ]
-
-  return {
-    labels: ['국어: 언매', '국어: 화작', '수학: 미적분', '수학: 확통', '영어 (전체)'],
-    datasets: [
-      {
-        data,
-        backgroundColor: ['#2563eb', '#64748b', '#4f46e5', '#94a3b8', '#059669'],
-        borderRadius: 8,
-        barThickness: 18
-      }
-    ]
-  }
-})
-
-const subjectBarOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  indexAxis: 'y',
-  scales: {
-    x: {
-      min: 1,
-      max: 9,
-      reverse: true, // 1등급이 왼쪽(우수)
-      title: { display: true, text: '평균 등급 (← 1등급 쪽이 우수)', font: { size: 10 } },
-      grid: { color: '#f1f5f9' },
-      ticks: {
-        stepSize: 1,
-        callback: (v) => `${v}등급`
-      }
-    },
-    y: {
-      grid: { display: false },
-      ticks: { font: { family: 'Pretendard', size: 11, weight: 'bold' }, color: '#334155' }
-    }
-  },
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      callbacks: {
-        label: (ctx) => ` 평균 등급: ${ctx.formattedValue}등급`
-      }
-    }
-  }
-}
-
-// -------------------------------------------------------------
 // 2. 사탐 & 과탐 데이터 (보고서 2페이지)
 // -------------------------------------------------------------
-const satamList = [
-  { name: '사회·문화', count: 127, grade: '5.94', color: '#15803d' },
-  { name: '생활과 윤리', count: 111, grade: '6.00', color: '#0284c7' },
-  { name: '한국지리', count: 18, grade: '6.89', color: '#0f766e' },
-  { name: '윤리와 사상', count: 16, grade: '6.38', color: '#0369a1' },
-  { name: '정치와 법', count: 14, grade: '5.93', color: '#b45309' },
-  { name: '세계 지리', count: 13, grade: '7.59', color: '#c026d3' },
-  { name: '세계사', count: 7, grade: '5.43', color: '#65a30d' },
-  { name: '경제', count: 3, grade: '6.00', color: '#0284c7' },
-  { name: '동아시아사', count: 3, grade: '6.00', color: '#ea580c' }
-]
-
-const gwatamList = [
-  { name: '생명 과학 Ⅰ', count: 35, grade: '6.23', color: '#166534' },
-  { name: '지구 과학 Ⅰ', count: 17, grade: '6.35', color: '#9333ea' },
-  { name: '물리학 Ⅰ', count: 16, grade: '5.81', color: '#0369a1' },
-  { name: '화학 Ⅰ', count: 14, grade: '6.58', color: '#0f172a' },
-  { name: '생명 과학 Ⅱ', count: 8, grade: '6.13', color: '#0284c7' },
-  { name: '물리학 Ⅱ', count: 3, grade: '6.33', color: '#ea580c' },
-  { name: '지구 과학 Ⅱ', count: 3, grade: '7.67', color: '#65a30d' },
-  { name: '화학 Ⅱ', count: 2, grade: '6.50', color: '#9a3412' }
-]
-
-// -------------------------------------------------------------
 // 탐구 과목별 그래프 시각화 및 정렬 상태
-// -------------------------------------------------------------
 const satamSortMode = ref('count') // 'count' | 'grade'
 const gwatamSortMode = ref('count') // 'count' | 'grade'
 const satamViewType = ref('bars') // 'bars' | 'chart'
 const gwatamViewType = ref('bars') // 'bars' | 'chart'
 
-const totalSatamCount = computed(() => satamList.reduce((acc, c) => acc + c.count, 0))
-const maxSatamCount = computed(() => Math.max(...satamList.map(s => s.count)))
+const activeSatamList = computed(() => {
+  if (selectedAcademicYear.value === '2026') return satamList
+  const dynamic = currentSatAnalysis.value?.subjectsDetail?.soc?.allSubjects
+  if (dynamic && dynamic.length > 0) {
+    return dynamic
+  }
+  return selectedAcademicYear.value === '2027' ? satamList : []
+})
+
+const activeGwatamList = computed(() => {
+  if (selectedAcademicYear.value === '2026') return gwatamList
+  const dynamic = currentSatAnalysis.value?.subjectsDetail?.sci?.allSubjects
+  if (dynamic && dynamic.length > 0) {
+    return dynamic
+  }
+  return selectedAcademicYear.value === '2027' ? gwatamList : []
+})
+
+const totalSatamCount = computed(() => activeSatamList.value.reduce((acc, c) => acc + c.count, 0))
+const maxSatamCount = computed(() => Math.max(...activeSatamList.value.map(s => s.count), 1))
 
 const processedSatamList = computed(() => {
   const tot = totalSatamCount.value || 1
   const max = maxSatamCount.value || 1
   
-  const mapped = satamList.map(s => {
-    const numGrade = parseFloat(s.grade)
+  const mapped = activeSatamList.value.map(s => {
+    const numGrade = parseFloat(s.grade) || 5.0
     const pct = ((s.count / tot) * 100).toFixed(1)
     const barWidth = Math.max(3, Math.round((s.count / max) * 100)) + '%'
     let gradeBadgeClass = 'bg-slate-50 text-slate-700 border-slate-200'
@@ -2803,15 +4032,15 @@ const processedSatamList = computed(() => {
   return [...mapped].sort((a, b) => b.count - a.count)
 })
 
-const totalGwatamCount = computed(() => gwatamList.reduce((acc, c) => acc + c.count, 0))
-const maxGwatamCount = computed(() => Math.max(...gwatamList.map(q => q.count)))
+const totalGwatamCount = computed(() => activeGwatamList.value.reduce((acc, c) => acc + c.count, 0))
+const maxGwatamCount = computed(() => Math.max(...activeGwatamList.value.map(q => q.count), 1))
 
 const processedGwatamList = computed(() => {
   const tot = totalGwatamCount.value || 1
   const max = maxGwatamCount.value || 1
   
-  const mapped = gwatamList.map(q => {
-    const numGrade = parseFloat(q.grade)
+  const mapped = activeGwatamList.value.map(q => {
+    const numGrade = parseFloat(q.grade) || 5.0
     const pct = ((q.count / tot) * 100).toFixed(1)
     const barWidth = Math.max(3, Math.round((q.count / max) * 100)) + '%'
     let gradeBadgeClass = 'bg-slate-50 text-slate-700 border-slate-200'
@@ -2929,104 +4158,36 @@ const gwatamChartOptions = {
 
 
 // -------------------------------------------------------------
-// 2-1. 사탐런 모의고사 원자료 분석 모드 상태 및 로직
+// 2-1. 사탐런 모의고사 분석 상태 및 로직 (단일 통합 모드)
 // -------------------------------------------------------------
-const satamMode = ref('OFFICIAL') // 'OFFICIAL' | 'MOCK_ANALYSIS'
-const isAnalyzingMock = ref(false)
-const mockFileName = ref('')
 const mockStats = ref(null)
-const mockAnalysisError = ref('')
-const showFormatGuide = ref(false)
-
 const studentFilter = ref('ALL') // 'ALL' | 'RUN_1' | 'RUN_2' | 'RUN_ALL' | 'KEPT'
 const studentSearch = ref('')
 
-async function handleMockFileUpload(e) {
-  const file = e.target.files?.[0]
-  if (!file) return
-
-  isAnalyzingMock.value = true
-  mockAnalysisError.value = ''
-  try {
-    const buffer = await file.arrayBuffer()
-    const wb = XLSX.read(buffer, { type: 'buffer' })
-    const records = parseMockExamWorkbook(wb)
-    if (!records || records.length === 0) {
-      throw new Error('모의고사 성적 데이터를 찾을 수 없습니다. 시트 탭 이름이나 컬럼명(이름, 수학, 탐구1, 탐구2 등)을 확인해 주세요.')
-    }
-    localCustomMockRecords.value = records
-    mockExamRecords.value = records
-    const result = calculateSatamRunStats(records)
-    if (!result.hasData) {
-      throw new Error('3월~10월 중 미적분, 기하 또는 과학탐구(8개 과목)를 응시한 자연계열 이과 학생이 발견되지 않았습니다.')
-    }
-    mockStats.value = result
-    mockFileName.value = file.name
-    satamMode.value = 'MOCK_ANALYSIS'
-  } catch (err) {
-    console.error(err)
-    mockAnalysisError.value = err.message || '파일 처리 중 오류가 발생했습니다.'
-  } finally {
-    isAnalyzingMock.value = false
-    e.target.value = ''
+const effectiveSatamStats = computed(() => {
+  if (mockStats.value && mockStats.value.naturalCohortCount > 0) {
+    return mockStats.value
   }
-}
-
-function loadSampleMockData() {
-  isAnalyzingMock.value = true
-  mockAnalysisError.value = ''
-  setTimeout(() => {
-    try {
-      const records = generateRealisticMockSample()
-      localCustomMockRecords.value = records
-      mockExamRecords.value = records
-      mockStats.value = calculateSatamRunStats(records)
-      mockFileName.value = '2026학년도 3~10월 모의고사 실증 데이터 (자연계 115명)'
-      satamMode.value = 'MOCK_ANALYSIS'
-    } catch (err) {
-      mockAnalysisError.value = '샘플 데이터 로드 실패: ' + err.message
-    } finally {
-      isAnalyzingMock.value = false
-    }
-  }, 150)
-}
-
-async function syncFromGoogleSheetMockData() {
-  isAnalyzingMock.value = true
-  mockAnalysisError.value = ''
-  try {
-    const records = await fetchAndParseKcueMockData(null)
-    if (!records || records.length === 0) {
-      throw new Error("배포 시트에서 '2027모의가채점' 탭 데이터를 찾을 수 없거나 암호화가 해제되지 않았습니다. 원본 시트에서 '대입 데이터 배포'를 먼저 실행해 주세요.")
-    }
-    localCustomMockRecords.value = records
-    mockExamRecords.value = records
-    const result = calculateSatamRunStats(records)
-    if (!result.hasData) {
-      throw new Error("자연계열(미적/기하/과탐) 응시 학생이 발견되지 않았습니다. 시트의 컬럼명을 확인해 주세요.")
-    }
-    mockStats.value = result
-    mockFileName.value = "구글 시트 '2027모의가채점' 탭 (실시간 연동)"
-    satamMode.value = 'MOCK_ANALYSIS'
-  } catch (err) {
-    console.error(err)
-    mockAnalysisError.value = err.message || '구글 시트 연동 중 오류가 발생했습니다.'
-  } finally {
-    isAnalyzingMock.value = false
+  return {
+    naturalCohortCount: 0,
+    appsBasedCohortCount: 0,
+    mockBasedCohortCount: 0,
+    totalRunCount: 0,
+    totalRunRate: '0.0',
+    run1Count: 0,
+    run1Rate: '0.0',
+    run2Count: 0,
+    run2Rate: '0.0',
+    keptCount: 0,
+    keptRate: '0.0',
+    popularSocialSubjects: [],
+    naturalCohort: []
   }
-}
-
-function resetMockAnalysis() {
-  mockStats.value = null
-  mockFileName.value = ''
-  satamMode.value = 'OFFICIAL'
-  mockAnalysisError.value = ''
-  localCustomMockRecords.value = []
-}
+})
 
 const filteredCohortStudents = computed(() => {
-  if (!mockStats.value || !mockStats.value.naturalCohort) return []
-  let list = mockStats.value.naturalCohort
+  if (!effectiveSatamStats.value?.naturalCohort) return []
+  let list = effectiveSatamStats.value.naturalCohort
 
   if (studentFilter.value === 'RUN_1') {
     list = list.filter(s => s.status === 'RUN_1')
@@ -3043,6 +4204,8 @@ const filteredCohortStudents = computed(() => {
     list = list.filter(s =>
       s.name.toLowerCase().includes(q) ||
       String(s.classNum).includes(q) ||
+      (s.cohortBadgeText && s.cohortBadgeText.toLowerCase().includes(q)) ||
+      (s.cohortDetail && s.cohortDetail.toLowerCase().includes(q)) ||
       s.socialSubjectsList.some(sub => sub.toLowerCase().includes(q)) ||
       s.scienceSubjectsList.some(sub => sub.toLowerCase().includes(q))
     )
@@ -3295,8 +4458,8 @@ const statsForGrade4to6 = computed(() => {
   const minScoreRatio = totalCards4to6 > 0 ? ((minScoreCards4to6 / totalCards4to6) * 100).toFixed(1) : '34.8'
 
   return {
-    totalCards: totalCards4to6 || 620,
-    minCards: minScoreCards4to6 || 215,
+    totalCards: totalCards4to6,
+    minCards: minScoreCards4to6,
     minRatio: minScoreRatio
   }
 })
@@ -3310,63 +4473,70 @@ function toggleCard(num) {
   expandedCard.value = expandedCard.value === num ? null : num
 }
 
-const STRATEGY_CARDS = [
-  {
-    num: 1,
-    badge: '내신 중심 교과 우세',
-    title: '등급에 관계없이 학생부교과 전형이 일관되게 유리합니다',
-    summary: '우리 학교의 과거 수시 결과에 비추어 볼 때 모든 등급대에서 교과 전형 합격률이 종합 전형을 앞섭니다.',
-    details: [
-      '1.0 ~ 1.9등급: 서울권 대학 주요 타깃 (교과 추천 적극 활용)',
-      '2.0 ~ 2.9등급: 서울 하위권 대학 & 지거국 본교 & 수도권 주요대학',
-      '3.0 ~ 3.9등급: 수도권 대학 & 지방 중위권 대학 (정량 교과 중심 안정 지원)',
-      '단, 교과/수능위주 전형도 최근 서류 정성평가(생기부) 반영 비율이 높아지고 있으므로 종합전형 병행 대비 필수',
-      '충실한 학생부 관리 시 종합 전형으로 0.5등급 내외 보완 합격 가능'
-    ]
-  },
-  {
-    num: 2,
-    badge: '농어촌·기회균형 양면성',
-    title: '상위권은 농어촌이 절대 유리, 중하위권은 경쟁 치열성을 경계',
-    summary: '1~2등급대 상위권은 농어촌 전형 합격률이 일반전형 대비 3배 이상 폭증하나, 중하위권은 오히려 역전 현상이 발생합니다.',
-    details: [
-      '상위권(내신 1~2등급대): 농어촌+기회균형 전형 적극 추천 (SKYSSHE 라인 합격률 일반 13.6% vs 농어촌 42.9%)',
-      '중하위권(내신 3등급 이하): 중위권 학생들의 농어촌 집중 몰림 현상으로 컷이 비정상적으로 상승할 위험 상존',
-      '수도권 주요대(KSSDAGIEK)의 경우 일반전형 합격률(22.9%)이 농어촌(16.1%)보다 오히려 높아 일반 교과 병행 지원이 안전'
-    ]
-  },
-  {
-    num: 3,
-    badge: '수능최저 마법',
-    title: '수능 최저학력기준을 맞추면 실질 경쟁률이 2:1로 급락하는 마법',
-    summary: '겉보기 합격률이 낮아 보인다고 최저 없는 전형만 찾지 마십시오. 최저를 맞추는 순간 70%가 탈락합니다.',
-    details: [
-      '최저 미반영 전형은 지원자가 폭주하여 외형 합격률(49.6%)에 비해 실제 합격선이 매우 촘촘함',
-      '수능 최저를 충족하는 학생 비율이 30%에 불과하므로 6:1 경쟁률이 실질 2:1로 축소',
-      '충원합격(추합)까지 감안하면 수능 최저를 맞춘 교과 지원자는 사실상 전원 합격 궤도에 진입'
-    ]
-  },
-  {
-    num: 4,
-    badge: '수능의 진짜 목적',
-    title: '수능은 정시 파이터를 위한 것이 아니라, 수시 최저를 위한 전략 무기',
-    summary: '고3 재학생의 정시 성공 확률은 매우 낮습니다. 수능 공부는 정시가 아니라 수시 최저 충족이 목표여야 합니다.',
-    details: [
-      '포곡고 수능 평균 등급은 국어 6.10, 수학 5.80으로 정시 지원 시 수도권 4년제 합격권 진입이 극히 제한적',
-      '수능 공부의 목표를 4과목 정시 대비가 아닌 영어(절대평가, 평균 4.94) 및 사탐 1과목 등 2개 합 충족으로 압축할 것',
-      '사탐런(과탐→사탐 48.7%)을 통해 최저 충족 전략 과목을 조기에 확정하는 것이 성공의 열쇠'
-    ]
-  },
-  {
-    num: 5,
-    badge: '정시 지원 기준선',
-    title: '수시 원서 접수 전까지 정시로 갈 수 있는 대학 라인을 확정하십시오',
-    summary: '가고 싶은 대학 1~6순위 중 정시로 몇 번째 순위까지 갈 수 있는지 냉정하게 알고 수시 6장을 써야 합니다.',
-    details: [
-      '6월/9월 모의평가 백분위 기준으로 정시 지원 가능 대학을 객관적으로 산출',
-      '정시로 합격 가능한 대학 라인보다 아래인 대학은 수시에서 절대 쓰지 않는 수시 납치 방지선 설정',
-      '가고 싶은 대학 1~6순위 중 정시 가능권 이상의 상향/적정 대학으로 수시 6장을 전략적으로 배분'
-    ]
-  }
-]
+const STRATEGY_CARDS = computed(() => {
+  const currentSchool = (schoolName.value && schoolName.value !== '우리학교') ? schoolName.value : '우리 학교'
+  const satamSummary = effectiveSatamStats.value?.totalRunRate
+    ? `사탐런(과탐→사탐 ${effectiveSatamStats.value.totalRunRate}%)을 통해 최저 충족 전략 과목을 조기에 확정하는 것이 성공의 열쇠`
+    : '사탐런(과탐→사탐)을 통해 최저 충족 전략 과목을 조기에 확정하는 것이 성공의 열쇠'
+  return [
+    {
+      num: 1,
+      badge: '내신 중심 교과 우세',
+      title: '등급에 관계없이 학생부교과 전형이 일관되게 유리합니다',
+      summary: `${currentSchool}의 과거 수시 결과에 비추어 볼 때 모든 등급대에서 교과 전형 합격률이 종합 전형을 앞섭니다.`,
+      details: [
+        '1.0 ~ 1.9등급: 서울권 대학 주요 타깃 (교과 추천 적극 활용)',
+        '2.0 ~ 2.9등급: 서울 하위권 대학 & 지거국 본교 & 수도권 주요대학',
+        '3.0 ~ 3.9등급: 수도권 대학 & 지방 중위권 대학 (정량 교과 중심 안정 지원)',
+        '단, 교과/수능위주 전형도 최근 서류 정성평가(생기부) 반영 비율이 높아지고 있으므로 종합전형 병행 대비 필수',
+        '충실한 학생부 관리 시 종합 전형으로 0.5등급 내외 보완 합격 가능'
+      ]
+    },
+    {
+      num: 2,
+      badge: '농어촌·기회균형 양면성',
+      title: '상위권은 농어촌이 절대 유리, 중하위권은 경쟁 치열성을 경계',
+      summary: '1~2등급대 상위권은 농어촌 전형 합격률이 일반전형 대비 3배 이상 폭증하나, 중하위권은 오히려 역전 현상이 발생합니다.',
+      details: [
+        '상위권(내신 1~2등급대): 농어촌+기회균형 전형 적극 추천 (SKYSSHE 라인 합격률 일반 13.6% vs 농어촌 42.9%)',
+        '중하위권(내신 3등급 이하): 중위권 학생들의 농어촌 집중 몰림 현상으로 컷이 비정상적으로 상승할 위험 상존',
+        '수도권 주요대(KSSDAGIEK)의 경우 일반전형 합격률(22.9%)이 농어촌(16.1%)보다 오히려 높아 일반 교과 병행 지원이 안전'
+      ]
+    },
+    {
+      num: 3,
+      badge: '수능최저 마법',
+      title: `수능 최저학력기준을 맞추면 실질 경쟁률이 ${schoolMinScoreStats.value?.avgRealRate || 4.4}:1로 급락하는 마법`,
+      summary: '겉보기 합격률이 낮아 보인다고 최저 없는 전형만 찾지 마십시오. 최저를 맞추는 순간 경쟁자의 60% 이상이 탈락합니다.',
+      details: [
+        `우리 학교 지원 통계: 최초 경쟁률 평균 ${schoolMinScoreStats.value?.avgInitialRate || 15.3}:1 ➔ 최저 충족 실질 경쟁률 ${schoolMinScoreStats.value?.avgRealRate || 4.4}:1로 대폭 축소 (교과전형 ${schoolMinScoreStats.value?.gpaRealRate || 3.5}:1, 충원 반영 시 체감 ${schoolMinScoreStats.value?.avgEffectiveRate || 2.3}:1)`,
+        '최저 미반영 전형은 지원자가 폭주하여 외형 합격률에 비해 실제 합격선이 매우 촘촘함',
+        '수능최저 충족 시 경쟁자의 60% 이상이 자동 탈락하므로 내신 0.5~1.0등급을 극복하는 강력한 역전 발판',
+        '충원합격(추합)까지 감안하면 4등급 이하 학생도 수도권 및 거점 국립대 실질 합격선에 진입'
+      ]
+    },
+    {
+      num: 4,
+      badge: '수능의 진짜 목적',
+      title: '수능은 정시 파이터를 위한 것이 아니라, 수시 최저를 위한 전략 무기',
+      summary: '고3 재학생의 정시 성공 확률은 매우 낮습니다. 수능 공부는 정시가 아니라 수시 최저 충족이 목표여야 합니다.',
+      details: [
+        `${currentSchool} 재학생 ${examTerm.value} 평균 등급 분포상 정시 지원 시 수도권 4년제 합격권 진입이 제한적`,
+        '수능 공부의 목표를 4과목 정시 대비가 아닌 영어(절대평가) 및 사탐 1과목 등 2개 합 충족으로 압축할 것',
+        satamSummary
+      ]
+    },
+    {
+      num: 5,
+      badge: '정시 지원 기준선',
+      title: '수시 원서 접수 전까지 정시로 갈 수 있는 대학 라인을 확정하십시오',
+      summary: '가고 싶은 대학 1~6순위 중 정시로 몇 번째 순위까지 갈 수 있는지 냉정하게 알고 수시 6장을 써야 합니다.',
+      details: [
+        '6월/9월 모의평가 백분위 기준으로 정시 지원 가능 대학을 객관적으로 산출',
+        '정시로 합격 가능한 대학 라인보다 아래인 대학은 수시에서 절대 쓰지 않는 수시 납치 방지선 설정',
+        '가고 싶은 대학 1~6순위 중 정시 가능권 이상의 상향/적정 대학으로 수시 6장을 전략적으로 배분'
+      ]
+    }
+  ]
+})
 </script>

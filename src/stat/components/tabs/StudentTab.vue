@@ -6,7 +6,7 @@
         <!-- Class Selector -->
         <select 
           v-model="studentClassFilter" 
-          class="bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          class="min-w-67.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 pl-3.5 pr-8 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
         >
           <option value="ALL">전체 학급 (재학생 + 졸업생)</option>
           <option value="ENROLLED">재학생 전체 (1~11반)</option>
@@ -28,8 +28,31 @@
         </div>
       </div>
 
-      <div class="text-xs text-slate-500">
-        검색된 학생: <strong class="text-indigo-600 font-bold">{{ studentList.length }}</strong>명 / 전체 246명
+      <div class="flex items-center space-x-3">
+        <div class="text-xs text-slate-500">
+          검색된 학생: <strong class="text-indigo-600 font-bold">{{ studentList.length }}</strong>명
+          <span v-if="studentClassFilter === 'ALL'">
+            / 전체 <strong>{{ totalStudentsCount }}</strong>명<span v-if="graduateStudentsCount > 0" class="text-slate-400 font-normal"> (재학생 {{ enrolledStudentsCount }}명 + 졸업생 {{ graduateStudentsCount }}명)</span>
+          </span>
+          <span v-else-if="studentClassFilter === 'ENROLLED'">
+            / 재학생 전체 <strong>{{ enrolledStudentsCount }}</strong>명
+          </span>
+          <span v-else-if="studentClassFilter === '졸업생' || studentClassFilter === 'GRADUATE'">
+            / 졸업생 전체 <strong>{{ graduateStudentsCount }}</strong>명
+          </span>
+          <span v-else>
+            / {{ studentClassFilter }}반 전체 <strong>{{ currentTargetTotalCount }}</strong>명
+          </span>
+        </div>
+        <button
+          type="button"
+          @click="isTeacherReportModalOpen = true"
+          class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer border-none"
+          title="특정 상담교사의 상담 기록을 공식 상담록 형태로 A4 인쇄합니다"
+        >
+          <span>📑</span>
+          <span>교사별 상담록 인쇄 (A4)</span>
+        </button>
       </div>
     </div>
 
@@ -56,12 +79,12 @@
           >
             <div class="flex items-center space-x-3">
               <div :class="[
-                'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0',
+                'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[10px] font-mono tracking-tighter shrink-0 px-0.5',
                 st.isGraduate 
                   ? 'bg-amber-100 text-amber-900 border border-amber-300' 
                   : (activeStudentKey === st.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700')
               ]">
-                {{ st.isGraduate ? '졸업' : `${st.classNum}-${st.studentNum}` }}
+                {{ formatStudentCode(st) }}
               </div>
               <div class="truncate">
                 <div class="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
@@ -98,12 +121,12 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
             <div class="flex items-center space-x-4">
               <div :class="[
-                'w-14 h-14 rounded-2xl text-white flex items-center justify-center font-bold text-lg shadow-md',
+                'w-14 h-14 rounded-2xl text-white flex items-center justify-center font-black text-sm font-mono tracking-tight shadow-md px-1.5',
                 currentStudent.isGraduate 
                   ? 'bg-linear-to-tr from-amber-600 to-amber-400 shadow-amber-500/20' 
                   : 'bg-linear-to-tr from-indigo-600 to-sky-400 shadow-indigo-500/20'
               ]">
-                {{ currentStudent.isGraduate ? '졸' : (maskName(currentStudent.name).replace(/\*/g, '')[0] || '학') }}
+                {{ formatStudentCode(currentStudent) }}
               </div>
               <div>
                 <div class="flex flex-wrap items-center gap-1.5">
@@ -202,6 +225,17 @@
               >
                 <span>🔄</span>
                 <span>스왑 원복</span>
+              </button>
+
+              <!-- 교사별 상담록 인쇄 버튼 -->
+              <button
+                type="button"
+                @click="isTeacherReportModalOpen = true"
+                class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer border-none"
+                title="교사별 상담록 인쇄 모달을 엽니다"
+              >
+                <span>📑</span>
+                <span>교사별 상담록 인쇄</span>
               </button>
 
               <button
@@ -736,22 +770,183 @@
             </div>
           </div>
 
-          <!-- 담임교사 상담 종합 소견 메모장 (LocalStorage 자동 보존) -->
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-2">
-            <div class="flex items-center justify-between">
-              <h5 class="text-xs font-bold text-slate-800 uppercase tracking-wide m-0 flex items-center space-x-1.5">
-                <span>📝</span>
-                <span>담임교사 1:1 진학 상담 소견 메모 (자동 저장)</span>
-              </h5>
-              <span class="text-[11px] text-slate-400">상담 리포트 인쇄 시 하단에 자동 인쇄됩니다</span>
+          <!-- 1:1 진학 지도 상담 기록 및 이력 관리 (DB 영구 보존 & 교사별 상담록 연동) -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+            <!-- 헤더 바 -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <h5 class="text-xs font-bold text-slate-900 uppercase tracking-wide m-0 flex items-center space-x-2">
+                  <span>📝</span>
+                  <span>1:1 진학지도 상담 기록 및 DB 저장</span>
+                  <span class="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                    DB 영구 보존
+                  </span>
+                </h5>
+                <p class="text-[11px] text-slate-500 m-0 mt-0.5">
+                  상담 일자·교사·상담내용을 기록하여 학생별 이력을 누적 관리하고, 교사별 상담록을 인쇄합니다.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                @click="isTeacherReportModalOpen = true"
+                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer border-none shrink-0 self-start sm:self-auto"
+              >
+                <span>📑</span>
+                <span>교사별 상담록 인쇄 (A4)</span>
+              </button>
             </div>
-            <textarea
-              v-model="counselMemo"
-              @input="saveCounselMemo"
-              rows="3"
-              placeholder="예: 학생은 상향 2장(고려대/성균관대)을 강력 희망하나, 수능 최저 미달 시 올킬 위험이 있으므로 최소 2장을 수도권 안정권(단국대/한경대)으로 조율 합의함."
-              class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed"
-            ></textarea>
+
+            <!-- 상담 기록 작성 폼 -->
+            <div class="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <!-- 상담 일자 -->
+                <div class="sm:col-span-4 flex items-center space-x-2">
+                  <span class="text-xs font-bold text-slate-700 shrink-0">상담 일자:</span>
+                  <input
+                    type="date"
+                    v-model="counselDate"
+                    class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <!-- 상담 교사 -->
+                <div class="sm:col-span-5 flex items-center space-x-2">
+                  <span class="text-xs font-bold text-slate-700 shrink-0">상담 교사:</span>
+                  <input
+                    type="text"
+                    v-model="counselTeacher"
+                    placeholder="상담교사 성명"
+                    class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <!-- 상태 표시 -->
+                <div class="sm:col-span-3 text-right">
+                  <span v-if="editingLogId" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    기존 기록 수정 중
+                  </span>
+                  <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    신규 상담 작성
+                  </span>
+                </div>
+              </div>
+
+              <!-- 상담 내용 입력창 -->
+              <div>
+                <textarea
+                  v-model="counselContent"
+                  rows="3"
+                  placeholder="예: 학생은 상향 2장(고려대/성균관대)을 강력 희망하나, 수능 최저 미달 시 올킬 위험이 있으므로 최소 2장을 수도권 안정권(단국대/한경대)으로 조율 합의함."
+                  class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed placeholder-slate-400"
+                ></textarea>
+              </div>
+
+              <!-- 버튼 및 피드백 -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                <div>
+                  <span v-if="saveMessage" class="text-xs text-emerald-600 font-bold flex items-center space-x-1">
+                    <span>✅</span>
+                    <span>{{ saveMessage }}</span>
+                  </span>
+                </div>
+
+                <div class="flex items-center space-x-2 self-end sm:self-auto">
+                  <button
+                    v-if="editingLogId"
+                    type="button"
+                    @click="startNewCounsel"
+                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer border border-slate-300 flex items-center space-x-1"
+                    title="기존 기록 수정을 닫고 새로운 상담 기록을 작성합니다"
+                  >
+                    <span>➕</span>
+                    <span>새 상담 작성</span>
+                  </button>
+
+                  <button
+                    v-if="editingLogId"
+                    type="button"
+                    @click="handleDeleteCounsel(editingLogId)"
+                    class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg transition-colors cursor-pointer border border-rose-300 flex items-center space-x-1"
+                    title="현재 불러온 상담 기록을 완전히 삭제합니다"
+                  >
+                    <span>🗑️</span>
+                    <span>기록 삭제</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    @click="handleSaveCounsel"
+                    :disabled="isSaving"
+                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer border-none disabled:opacity-50"
+                  >
+                    <span>💾</span>
+                    <span>{{ editingLogId ? '상담 기록 수정 저장' : '상담 기록 DB 저장' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 해당 학생의 과거 상담 이력 목록 (누적 기록) -->
+            <div v-if="studentCounselLogs.length > 0" class="space-y-2 pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span class="flex items-center space-x-1.5">
+                  <span>📋</span>
+                  <span>{{ currentStudent.name }} 학생의 1:1 상담 이력</span>
+                  <span class="text-indigo-600 font-black">({{ studentCounselLogs.length }}건)</span>
+                </span>
+                <span class="text-[11px] text-slate-400 font-normal">최신순 정렬</span>
+              </div>
+
+              <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <div
+                  v-for="log in studentCounselLogs"
+                  :key="log.id"
+                  class="p-3 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50/70 transition-colors text-xs space-y-1.5"
+                  :class="{ 'ring-2 ring-indigo-500/30 bg-indigo-50/30': editingLogId === log.id }"
+                >
+                  <div class="flex items-center justify-between text-[11px]">
+                    <div class="flex items-center space-x-2">
+                      <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold">
+                        📅 {{ log.counsel_date }}
+                      </span>
+                      <span class="font-bold text-slate-700">
+                        상담자: {{ log.teacher_name }} 선생님
+                      </span>
+                      <span v-if="log.academic_year" class="text-slate-400">
+                        ({{ log.academic_year }}학년도)
+                      </span>
+                    </div>
+
+                    <div class="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        @click="handleEditCounsel(log)"
+                        class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-md cursor-pointer transition-colors flex items-center space-x-1 shadow-2xs"
+                        title="이 상담 내용을 위 입력창으로 불러와 수정합니다"
+                      >
+                        <span>✏️</span>
+                        <span>수정</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="handleDeleteCounsel(log.id)"
+                        class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-md cursor-pointer transition-colors flex items-center space-x-1 shadow-2xs"
+                        title="이 상담 기록을 삭제합니다"
+                      >
+                        <span>🗑️</span>
+                        <span>삭제</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="text-slate-800 leading-relaxed whitespace-pre-wrap text-[11.5px] bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                    {{ log.content }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -791,12 +986,21 @@
       @close="isPrintModalOpen = false"
     />
 
+    <!-- 6. 교사별 1:1 진학지도 상담록 인쇄 모달 -->
+    <TeacherCounselReportModal
+      :isOpen="isTeacherReportModalOpen"
+      :initialYear="selectedAcademicYear"
+      :currentTeacherName="counselTeacher"
+      @close="isTeacherReportModalOpen = false"
+      @updated="reloadCurrentStudentLogs"
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useData, maskName, formatGrade, loadCsatPassRateData, csatPassRateTable } from '../../composables/useStatData'
+import { useData, maskName, formatGrade, formatStudentCode, loadCsatPassRateData, csatPassRateTable } from '../../composables/useStatData'
 import CompetitionRateMicroChart from '../CompetitionRateMicroChart.vue'
 import CsatMinScoreTracker from '../CsatMinScoreTracker.vue'
 
@@ -809,9 +1013,15 @@ import {
   getRecommendedLines 
 } from '../../utils/counselEngine.js'
 import CounselPrintReportModal from '../counsel/CounselPrintReportModal.vue'
+import TeacherCounselReportModal from '../counsel/TeacherCounselReportModal.vue'
 import StudentCounselRecommendations from '../counsel/StudentCounselRecommendations.vue'
 import StudentDoppelgangerSeniors from '../counsel/StudentDoppelgangerSeniors.vue'
 import StudentSafetyScoreAccordion from '../counsel/StudentSafetyScoreAccordion.vue'
+import {
+  fetchCounselLogsByStudent,
+  saveCounselRecord,
+  deleteCounselRecord
+} from '../../../api/counselApi.js'
 
 const { 
   applications, 
@@ -839,9 +1049,19 @@ const activeStudentKey = ref('')
 const activeSubTab = ref('DIAGNOSIS') // 'DIAGNOSIS' | 'RECOMMEND' | 'SENIORS'
 const simulationOffset = ref(0) // -1: 보수적, 0: 현상유지, 1: 낙관적
 const isPrintModalOpen = ref(false)
+const isTeacherReportModalOpen = ref(false)
 const cardAgreements = ref({}) // { [cardId]: '담임추천' | '학생희망' | '학부모요청' }
 const swappedCards = ref({}) // { [cardId]: swappedAppObj }
 const counselMemo = ref('')
+
+// 1:1 진학 상담 DB 및 이력 상태
+const counselDate = ref(new Date().toISOString().slice(0, 10))
+const counselTeacher = ref(localStorage.getItem('pcm_teacher_name') || '담임교사')
+const counselContent = ref('')
+const editingLogId = ref(null)
+const studentCounselLogs = ref([])
+const saveMessage = ref('')
+const isSaving = ref(false)
 
 // 안전도 점수 아코디언 상세 보기 상태
 const isScoreAccordionOpen = ref(false)
@@ -861,18 +1081,164 @@ function openMetricDetail(metricKey) {
   isScoreAccordionOpen.value = true
 }
 
-// 학생 변경 시 메모 불러오기 및 스왑 초기화
-watch(activeStudentKey, (newKey) => {
+// 학생 변경 시 1:1 상담 DB 이력 불러오기 및 스왑 초기화
+watch(activeStudentKey, async (newKey) => {
   swappedCards.value = {}
+  editingLogId.value = null
+  saveMessage.value = ''
+  counselDate.value = new Date().toISOString().slice(0, 10)
+
+  if (!counselTeacher.value || counselTeacher.value === '담임교사') {
+    counselTeacher.value = localStorage.getItem('pcm_teacher_name') || '담임교사'
+  }
+
   if (newKey) {
-    const saved = localStorage.getItem(`counsel_memo_${newKey}`)
-    counselMemo.value = saved || ''
+    try {
+      const logs = await fetchCounselLogsByStudent(newKey, selectedAcademicYear.value)
+      studentCounselLogs.value = logs || []
+      if (logs && logs.length > 0) {
+        const latest = logs[0]
+        editingLogId.value = latest.id
+        counselDate.value = latest.counsel_date || new Date().toISOString().slice(0, 10)
+        counselTeacher.value = latest.teacher_name || counselTeacher.value
+        counselContent.value = latest.content || ''
+        counselMemo.value = latest.content || ''
+      } else {
+        editingLogId.value = null
+        const saved = localStorage.getItem(`counsel_memo_${newKey}`)
+        counselContent.value = saved || ''
+        counselMemo.value = saved || ''
+      }
+    } catch (err) {
+      console.warn('Error loading student counsel logs:', err)
+      const saved = localStorage.getItem(`counsel_memo_${newKey}`)
+      counselContent.value = saved || ''
+      counselMemo.value = saved || ''
+    }
+  } else {
+    editingLogId.value = null
+    counselContent.value = ''
+    counselMemo.value = ''
+    studentCounselLogs.value = []
   }
 }, { immediate: true })
+
+function startNewCounsel() {
+  editingLogId.value = null
+  counselDate.value = new Date().toISOString().slice(0, 10)
+  counselContent.value = ''
+  counselMemo.value = ''
+  saveMessage.value = ''
+}
+
+// 상담 내용과 레거시 counselMemo 실시간 동기화
+watch(counselContent, (newVal) => {
+  counselMemo.value = newVal
+  if (activeStudentKey.value) {
+    localStorage.setItem(`counsel_memo_${activeStudentKey.value}`, newVal)
+  }
+})
 
 function saveCounselMemo() {
   if (activeStudentKey.value) {
     localStorage.setItem(`counsel_memo_${activeStudentKey.value}`, counselMemo.value)
+  }
+}
+
+async function reloadCurrentStudentLogs() {
+  if (!activeStudentKey.value) return
+  const logs = await fetchCounselLogsByStudent(activeStudentKey.value, selectedAcademicYear.value)
+  studentCounselLogs.value = logs || []
+}
+
+async function handleSaveCounsel() {
+  if (!currentStudent.value) return
+  if (!counselContent.value.trim()) {
+    alert('상담 내용을 입력해주세요.')
+    return
+  }
+
+  isSaving.value = true
+  saveMessage.value = ''
+  try {
+    const payload = {
+      id: editingLogId.value || undefined,
+      academic_year: selectedAcademicYear.value || '2027',
+      counsel_date: counselDate.value || new Date().toISOString().slice(0, 10),
+      teacher_name: (counselTeacher.value || '담임교사').trim(),
+      student_key: currentStudent.value.key,
+      student_code: formatStudentCode(currentStudent.value),
+      student_name: currentStudent.value.name,
+      grade: currentStudent.value.grade || 3,
+      class_num: String(currentStudent.value.classNum),
+      student_num: String(currentStudent.value.studentNum),
+      content: counselContent.value.trim()
+    }
+
+    await saveCounselRecord(payload)
+
+    if (payload.teacher_name) {
+      localStorage.setItem('pcm_teacher_name', payload.teacher_name)
+    }
+
+    saveMessage.value = editingLogId.value ? '상담 기록이 수정되었습니다.' : '상담 기록이 DB에 안전하게 저장되었습니다.'
+    setTimeout(() => {
+      saveMessage.value = ''
+    }, 3500)
+
+    editingLogId.value = null
+    await reloadCurrentStudentLogs()
+  } catch (err) {
+    console.error('Save counsel error:', err)
+    alert('상담 기록 저장 중 오류가 발생했습니다: ' + err.message)
+  } finally {
+    isSaving.value = false
+  }
+}
+
+function handleEditCounsel(log) {
+  if (!log) return
+  editingLogId.value = log.id
+  counselDate.value = log.counsel_date || new Date().toISOString().slice(0, 10)
+  counselTeacher.value = log.teacher_name || counselTeacher.value
+  counselContent.value = log.content || ''
+}
+
+function cancelEditCounsel() {
+  editingLogId.value = null
+  counselDate.value = new Date().toISOString().slice(0, 10)
+  if (studentCounselLogs.value.length > 0) {
+    counselContent.value = studentCounselLogs.value[0].content || ''
+  }
+}
+
+async function handleDeleteCounsel(logId) {
+  if (!confirm('해당 상담 기록을 삭제하시겠습니까?')) return
+  try {
+    await deleteCounselRecord(logId, activeStudentKey.value)
+    if (editingLogId.value === logId) {
+      editingLogId.value = null
+    }
+    await reloadCurrentStudentLogs()
+    if (studentCounselLogs.value.length > 0) {
+      const latest = studentCounselLogs.value[0]
+      editingLogId.value = latest.id
+      counselDate.value = latest.counsel_date || new Date().toISOString().slice(0, 10)
+      counselTeacher.value = latest.teacher_name || counselTeacher.value
+      counselContent.value = latest.content || ''
+      counselMemo.value = latest.content || ''
+    } else {
+      editingLogId.value = null
+      counselContent.value = ''
+      counselMemo.value = ''
+    }
+    saveMessage.value = '상담 기록이 삭제되었습니다.'
+    setTimeout(() => {
+      saveMessage.value = ''
+    }, 3000)
+  } catch (err) {
+    console.error('Delete counsel error:', err)
+    alert('삭제 중 오류가 발생했습니다.')
   }
 }
 
@@ -918,6 +1284,25 @@ const studentsMap = computed(() => {
   })
 
   return map
+})
+
+// 전체 학생 및 재학생/졸업생 수 동적 집계
+const allStudentsList = computed(() => Array.from(studentsMap.value.values()))
+const totalStudentsCount = computed(() => allStudentsList.value.length)
+const enrolledStudentsCount = computed(() => allStudentsList.value.filter(s => !s.isGraduate && s.classNum !== '졸업생').length)
+const graduateStudentsCount = computed(() => allStudentsList.value.filter(s => s.isGraduate || s.classNum === '졸업생').length)
+
+const currentTargetTotalCount = computed(() => {
+  if (studentClassFilter.value === 'ENROLLED') {
+    return enrolledStudentsCount.value
+  }
+  if (studentClassFilter.value === '졸업생' || studentClassFilter.value === 'GRADUATE') {
+    return graduateStudentsCount.value
+  }
+  if (studentClassFilter.value !== 'ALL') {
+    return allStudentsList.value.filter(s => String(s.classNum) === String(studentClassFilter.value)).length
+  }
+  return totalStudentsCount.value
 })
 
 // Filtered student list

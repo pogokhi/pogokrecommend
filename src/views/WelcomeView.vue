@@ -15,7 +15,7 @@
             <path d="M6 12v5c3 3 9 3 12 0v-5"/>
           </svg>
         </div>
-        <h1 class="text-2xl font-bold" style="color: #0f172a; margin: 0;">{{ displaySystemName }}</h1>
+        <h1 class="text-2xl font-bold portal-title-font" style="color: #0f172a; margin: 0;">{{ displaySystemName }}</h1>
       </div>
 
       <!-- 1단계: 이용 안내 동의 -->
@@ -189,7 +189,7 @@ import { fetchLoginSystemName, loginSystemName, DEFAULT_SYSTEM_NAME } from '../a
 const router = useRouter()
 const auth = useAuthStore()
 
-const displaySystemName = computed(() => loginSystemName.value || DEFAULT_SYSTEM_NAME || '3학년 진학·학사 통합 포털')
+const displaySystemName = computed(() => loginSystemName.value || '')
 
 onMounted(() => {
   fetchSchoolName()

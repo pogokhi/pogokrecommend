@@ -21,7 +21,7 @@
         }"
       >
         <div v-if="!collapsed" class="flex items-center gap-2 whitespace-nowrap">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 flex items-center justify-center text-white shadow-xs shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-linear-to-tr from-blue-600 via-indigo-600 to-sky-500 flex items-center justify-center text-white shadow-xs shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <line x1="18" y1="20" x2="18" y2="10" stroke-width="2.2" stroke-linecap="round"></line>
               <line x1="12" y1="20" x2="12" y2="4" stroke-width="2.2" stroke-linecap="round"></line>
@@ -99,7 +99,7 @@
                 />
                 <span
                   v-if="item.badge && collapsed"
-                  class="absolute -top-1.5 -right-2 flex h-3.5 min-w-[14px] px-0.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white shadow"
+                  class="absolute -top-1.5 -right-2 flex h-3.5 min-w-3.5 px-0.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white shadow"
                 >
                   {{ item.badge }}
                 </span>
@@ -200,13 +200,13 @@
       <StatHeader :currentTabItem="currentTabItem" class="no-print" />
 
       <!-- 필터 바 (상단 고정, 고입 설명회, 학생별 6장 카드 및 수능최저 시뮬레이터 탭은 자체 컨트롤 사용으로 제외) -->
-      <StatFilterBar v-if="currentTab !== 'admission' && currentTab !== 'student' && currentTab !== 'csatTarget'" class="no-print" />
+      <StatFilterBar v-if="currentTab !== 'admission' && currentTab !== 'student' && currentTab !== 'csatTarget' && currentTab !== 'grade2Analysis' && currentTab !== 'grade1Analysis' && currentTab !== 'preExamineeStrategy'" class="no-print" />
 
       <!-- 스크롤 가능한 본문 영역 -->
       <div class="flex-1 min-h-0 flex flex-col overflow-y-auto" style="scrollbar-gutter: stable;">
         <div class="max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           <!-- 1. 구글 시트 탭 데이터 실시간 로딩 중 -->
-          <div v-if="isLoadingYearData && currentTab !== 'csatTarget'" class="flex flex-col items-center justify-center py-24 text-center">
+          <div v-if="isLoadingYearData && currentTab !== 'csatTarget' && currentTab !== 'grade2Analysis' && currentTab !== 'grade1Analysis' && currentTab !== 'preExamineeStrategy'" class="flex flex-col items-center justify-center py-24 text-center">
             <div class="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200/60 flex items-center justify-center mb-4 text-indigo-600 shadow-sm">
               <svg class="animate-spin w-7 h-7" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -222,7 +222,7 @@
           </div>
 
           <!-- 2. 데이터가 없는 경우 (미등록 연도 또는 탭 부재, 수능최저 시뮬레이터는 제외) -->
-          <div v-else-if="currentTab !== 'csatTarget' && (!applications || applications.length === 0)" class="flex flex-col items-center justify-center py-20 text-center">
+          <div v-else-if="currentTab !== 'csatTarget' && currentTab !== 'grade2Analysis' && currentTab !== 'grade1Analysis' && (!applications || applications.length === 0)" class="flex flex-col items-center justify-center py-20 text-center">
             <div class="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-4 text-2xl shadow-xs">
               📂
             </div>
@@ -255,7 +255,9 @@
 
           <!-- 3. 정상 데이터 탭 화면 -->
           <Transition v-else name="fade" mode="out-in">
-            <component :is="activeTabComponent" />
+            <LowerGradeMockAnalysisTab v-if="currentTab === 'grade2Analysis'" :grade="2" key="grade2" />
+            <LowerGradeMockAnalysisTab v-else-if="currentTab === 'grade1Analysis'" :grade="1" key="grade1" />
+            <component v-else :is="activeTabComponent" />
           </Transition>
         </div>
 
@@ -279,7 +281,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import StatHeader from '../stat/components/StatHeader.vue'
@@ -298,6 +300,8 @@ import RuralStatTab from '../stat/components/tabs/RuralStatTab.vue'
 import ParentCounselTab from '../stat/components/tabs/ParentCounselTab.vue'
 import HighSchoolAdmissionTab from '../stat/components/tabs/HighSchoolAdmissionTab.vue'
 import CsatTargetSimulatorTab from '../stat/components/tabs/CsatTargetSimulatorTab.vue'
+import LowerGradeMockAnalysisTab from '../stat/components/tabs/LowerGradeMockAnalysisTab.vue'
+import PreExamineeStrategyTab from '../stat/components/tabs/PreExamineeStrategyTab.vue'
 import { useStatData } from '../stat/composables/useStatData'
 import { schoolName } from '../utils/schoolConfig'
 import {
@@ -320,7 +324,8 @@ import {
   GraduationCap,
   Compass,
   Award,
-  Trees
+  Trees,
+  BookOpen
 } from 'lucide-vue-next'
 import { clearStatSessionPassword, getStatSessionPassword, hasRuralSheetConfigured } from '../api/statApi'
 
@@ -331,12 +336,13 @@ const {
   applications, 
   isLoadingYearData, 
   yearDataError, 
-  reloadCurrentYear 
+  reloadCurrentYear,
+  setAcademicYear
 } = useStatData()
 
-// 사이드바 접기/펼치기 상태
 const collapsed = ref(false)
 const currentTab = ref('overview')
+
 
 // 관리자 설정에서 '농어촌 및 기회균형 전형 구글 시트 ID' 등록 여부 확인 (미등록 시 메뉴 숨김)
 const initialRuralSheetId = typeof window !== 'undefined' ? localStorage.getItem('pcm_google_sheet_rural_id') : ''
@@ -364,22 +370,31 @@ const menuGroups = computed(() => [
     emoji: '📊',
     title: '대입 현황 & 분석',
     items: [
-      { id: 'overview', name: '종합 대시보드', iconComponent: BarChart3 },
+      { id: 'overview', name: '대입 지원 결과', iconComponent: BarChart3 },
+      { id: 'university', name: '대입 결과', iconComponent: Building2 },
       { id: 'multiYear', name: '5개년 추이 분석', iconComponent: TrendingUp },
       { id: 'scatter', name: '대입 합불 산점도', iconComponent: ChartScatter, badge: 'NEW' },
+      { id: 'grade', name: '성적대별 전형 경향', iconComponent: Target },
       { id: 'schoolRec', name: '학교장추천 전형 분석', iconComponent: Award, badge: '특화' },
-      ...(hasRuralSheet.value ? [{ id: 'ruralStat', name: '농어촌 전형 분석', iconComponent: Trees, badge: '특화' }] : []),
-      { id: 'university', name: '대학 그룹별 분석', iconComponent: Building2 },
-      { id: 'grade', name: '성적대별 전형 경향', iconComponent: Target }
+      ...(hasRuralSheet.value ? [{ id: 'ruralStat', name: '농어촌 전형 분석', iconComponent: Trees, badge: '특화' }] : [])
     ]
   },
-  {
+    {
     emoji: '🎯',
     title: '진학 지도 & 상담',
     items: [
       { id: 'student', name: '학생별 6장 카드', iconComponent: Users },
-      { id: 'csatTarget', name: '수능최저 & 목표진단', iconComponent: Compass, badge: '예비고3' },
-      { id: 'counsel', name: '학부모 맞춤 상담', iconComponent: Sparkles, badge: 'HOT' },
+      { id: 'csatTarget', name: '수능최저 & 목표진단', iconComponent: Compass },
+      { id: 'counsel', name: '학부모 맞춤 상담', iconComponent: Sparkles, badge: 'HOT' }
+    ]
+  },
+  {
+    emoji: '🌱',
+    title: '예비 수험생',
+    items: [
+      { id: 'preExamineeStrategy', name: '예비 수험생 전략', iconComponent: Compass, badge: '2028특화' },
+      { id: 'grade2Analysis', name: '고2 성적분석', iconComponent: Award, badge: '고2' },
+      { id: 'grade1Analysis', name: '고1 성적분석', iconComponent: BookOpen, badge: '고1' },
       { id: 'admission', name: '고입 설명회 특화', iconComponent: GraduationCap, badge: '중3' }
     ]
   },
@@ -419,6 +434,9 @@ const activeTabComponent = computed(() => {
     case 'grade': return GradeTab
     case 'calendar': return CalendarTab
     case 'student': return StudentTab
+    case 'preExamineeStrategy': return PreExamineeStrategyTab
+    case 'grade2Analysis':
+    case 'grade1Analysis': return LowerGradeMockAnalysisTab
     case 'data': return DataExplorerTab
     case 'report': return PrintReportTab
     default: return OverviewTab
@@ -454,6 +472,15 @@ async function handleLogout() {
   router.push('/login')
 }
 </script>
+
+<style>
+@media print {
+  @page {
+    size: A4 portrait !important;
+    margin: 8mm 10mm !important;
+  }
+}
+</style>
 
 <style scoped>
 .fade-enter-active,

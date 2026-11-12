@@ -5,6 +5,7 @@ import { encryptText, decryptText, hashText } from '../utils/cryptoUtils'
 import { fetchRoundSchedulesMap, computeRoundDisplayStatus, isRoundAnnouncedOrDone } from '../utils/roundSchedule'
 import { deleteApplicationStorageFiles } from '../utils/storageUtils'
 import { buildOverviewFromKcue } from '../utils/recommendationKcueAdapter'
+import { cleanUnivName, lookupMasterData, lookupMasterQuota, lookupMasterRawQuota, lookupMasterGradCondition } from '../utils/recommendationMasterData'
 
 // Helper for error parsing
 export async function blobErrMsg(e) {
@@ -271,14 +272,18 @@ export const getOverview = async (targetRoundId = null) => {
     }
   }))
 
-  const graduatedObj = graduatedTeacher ? {
+  const gradTeacherName = graduatedTeacher
+    ? ((graduatedTeacher.name === '관리자' ? '관리자' : await decryptText(graduatedTeacher.name)) || '졸업생 담당')
+    : '관리자'
+
+  const graduatedObj = {
     grade: 0,
     class_no: 0,
-    teacher_name: (graduatedTeacher.name === '관리자' ? '관리자' : await decryptText(graduatedTeacher.name)) || '졸업생 담당',
+    teacher_name: gradTeacherName,
     submitted: gradApplicantsSet.size,
     count: gradApplicantsSet.size,
     confirmed: true
-  } : null
+  }
 
   // [4] 대학/모집단위 배열 생성 (정원 계산 헬퍼 getQuotaStats와 연동하여 정밀한 정원 계산 반영)
   // 이전 차수에서 추천 확정되어 아직 포기되지 않은(유효한) 추천 인원 집계
@@ -1245,7 +1250,12 @@ export const getStudents = async (params = {}) => {
   let query = supabase.from('enrolled_students').select('*', { count: 'exact' })
 
   if (params.is_enrolled !== undefined && params.is_enrolled !== null) {
-    query = query.eq('is_enrolled', Boolean(Number(params.is_enrolled)))
+    const isEnr = Boolean(Number(params.is_enrolled))
+    if (isEnr) {
+      query = query.eq('is_enrolled', true)
+    } else {
+      query = query.or('is_enrolled.eq.false,grade.eq.0,grade.is.null')
+    }
   }
   if (params.grade !== undefined && params.grade !== null && params.grade !== '') {
     query = query.eq('grade', params.grade)
@@ -1978,8 +1988,11 @@ export const getResults = async (roundId, trackId) => {
         const stA = studentMap.get(a.student_id) || profileMap.get(a.student_id) || {}
         const stB = studentMap.get(b.student_id) || profileMap.get(b.student_id) || {}
 
-        if (stA.is_enrolled !== stB.is_enrolled) {
-          return stA.is_enrolled ? -1 : 1
+        const isEnrA = Boolean(stA.is_enrolled !== false && stA.grade && Number(stA.grade) > 0)
+        const isEnrB = Boolean(stB.is_enrolled !== false && stB.grade && Number(stB.grade) > 0)
+
+        if (isEnrA !== isEnrB) {
+          return isEnrA ? -1 : 1
         }
         const scoreA = a.manual_score != null ? Number(a.manual_score) : 0
         const scoreB = b.manual_score != null ? Number(b.manual_score) : 0
@@ -2033,12 +2046,13 @@ export const getResults = async (roundId, trackId) => {
       if (studentName.startsWith('enc:')) {
         try { studentName = await decryptText(studentName) } catch { studentName = '복호화실패' }
       }
+      const isEnr = Boolean(stInfo.is_enrolled !== false && stInfo.grade && Number(stInfo.grade) > 0)
       return {
         ...ap,
         stInfo: {
           ...stInfo,
           name: studentName,
-          is_enrolled: stInfo.is_enrolled !== false
+          is_enrolled: isEnr
         }
       }
     }))
@@ -2266,7 +2280,7 @@ export const getApplications = async (roundId, trackId) => {
       grade: stInfo.grade,
       class_no: stInfo.class_no,
       seq_no: stInfo.seq_no,
-      is_enrolled: stInfo.is_enrolled !== false,
+      is_enrolled: Boolean(stInfo.is_enrolled !== false && stInfo.grade && Number(stInfo.grade) > 0),
       univ_id: ap.univ_id,
       univ_name: ap.universities?.univ_name || '',
       track_name: ap.universities?.track_name || '',
@@ -2569,9 +2583,10 @@ export const getQuotaStats = async () => {
   // Map2: univ_name 만 (단일 전형 대학 fallback)
   const { data: regRecs } = await supabase
     .from('regional_recommendations')
-    .select('univ_name, track_name, quota_limit')
+    .select('univ_name, track_name, quota_limit, grad_condition')
   const regRecMap = new Map()      // key: norm(univ)__norm(track)
   const regRecByUniv = new Map()   // key: norm(univ) (% 타입인 것만)
+  const regGradCondMap = new Map() // key: norm(univ)__norm(track) 또는 norm(univ)
   // 대학명/전형명 정규화: 앞뒤 공백 제거, 내부 공백 제거, 소문자 변환
   const normKey = s => (s || '').trim().toLowerCase().replace(/\s+/g, '')
   for (const r of (regRecs || [])) {
@@ -2579,6 +2594,13 @@ export const getQuotaStats = async () => {
     const tName = (r.track_name || '').trim()
     const k = `${normKey(uName)}__${normKey(tName)}`
     if (!regRecMap.has(k)) regRecMap.set(k, r.quota_limit)
+    if (r.grad_condition && !regGradCondMap.has(k)) regGradCondMap.set(k, r.grad_condition)
+    const uClean = cleanUnivName(uName)
+    const kClean = `${normKey(uClean)}__${normKey(tName)}`
+    if (!regRecMap.has(kClean)) regRecMap.set(kClean, r.quota_limit)
+    if (r.grad_condition && !regGradCondMap.has(kClean)) regGradCondMap.set(kClean, r.grad_condition)
+    if (r.grad_condition && !regGradCondMap.has(normKey(uName))) regGradCondMap.set(normKey(uName), r.grad_condition)
+    if (r.grad_condition && !regGradCondMap.has(normKey(uClean))) regGradCondMap.set(normKey(uClean), r.grad_condition)
     // 퍼센트 타입 감지: "3%" 형태 OR 0 < n < 1 소수("0.03" 등 엑셀 % 셀 원본값)
     if (r.quota_limit != null) {
       const rawStr = String(r.quota_limit).trim()
@@ -2668,9 +2690,10 @@ export const getQuotaStats = async () => {
     }
 
     const group = univGroupMap[key]
+    const cleanKey = cleanUnivName(key)
     const regKey = `${normKey(key)}__${normKey(u.track_name || key)}`
-    // 1순위: remarks.raw_quota_limit (DB 저장값), 2순위: regRecMap 정확 매칭, 3순위: 대학명만 fallback
-    const rawQuotaLimit = u.raw_quota_limit ?? regRecMap.get(regKey) ?? regRecByUniv.get(normKey(key)) ?? null
+    const regKeyClean = `${normKey(cleanKey)}__${normKey(u.track_name || key)}`
+    const rawQuotaLimit = u.raw_quota_limit ?? regRecMap.get(regKey) ?? regRecMap.get(regKeyClean) ?? regRecByUniv.get(normKey(key)) ?? regRecByUniv.get(normKey(cleanKey)) ?? lookupMasterRawQuota(key, u.track_name) ?? null
 
     // unit_quota: DB 저장값(INTEGER)이 0이고 raw에 %가 있으면 다시 환산
     let unitQuota = u.has_quota ? resolveUnitQuota(u.quota_limit) : null
@@ -2680,6 +2703,10 @@ export const getQuotaStats = async () => {
         unitQuota = Math.ceil(disclosureCount * pct / 100)
       }
     }
+    if (unitQuota === null || unitQuota === 0) {
+      const mQuota = lookupMasterQuota(key, u.track_name)
+      if (mQuota != null) unitQuota = mQuota
+    }
 
     group.total_used += recommendedCount
     group.total_enrolled_used += enrolledUsed
@@ -2688,6 +2715,7 @@ export const getQuotaStats = async () => {
       group.total_quota = meta.total_quota
     }
 
+    const gradConditionVal = regGradCondMap.get(regKey) ?? regGradCondMap.get(regKeyClean) ?? regGradCondMap.get(normKey(key)) ?? regGradCondMap.get(normKey(cleanKey)) ?? lookupMasterGradCondition(key, u.track_name) ?? '제한없음';
     group.tracks.push({
       id: u.id,
       track_id: u.id,
@@ -2695,6 +2723,7 @@ export const getQuotaStats = async () => {
       track_type: u.track_type || '',
       unit_quota: unitQuota,
       raw_quota_limit: rawQuotaLimit,   // 원본 regional % 텍스트 ("3%" 등)
+      grad_condition: gradConditionVal,
       unit_used: recommendedCount,
       enrolled_used: enrolledUsed,
       grad_used: gradUsed,
@@ -3010,7 +3039,7 @@ export const getTrackRecommendedList = async (trackId) => {
       student_id: ap.student_id,
       name: studentName,
       student_code: stInfo.student_code || '',
-      is_enrolled: stInfo.is_enrolled !== false,
+      is_enrolled: Boolean(stInfo.is_enrolled !== false && stInfo.grade && Number(stInfo.grade) > 0),
       abandoned: ap.is_abandoned,
       ranking: index + 1
     }

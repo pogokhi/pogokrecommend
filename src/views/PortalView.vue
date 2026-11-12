@@ -13,7 +13,7 @@
           </div>
           <div class="flex flex-col leading-tight">
             <span class="text-xs font-bold text-blue-600 tracking-wide">{{ schoolName }}</span>
-            <h1 class="text-base font-bold text-slate-900 m-0">{{ displaySystemName }}</h1>
+            <h1 class="text-base font-bold text-slate-900 m-0 portal-title-font min-h-[1.25rem]">{{ displaySystemName }}</h1>
           </div>
         </div>
 
@@ -70,9 +70,9 @@
         <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-extrabold mb-3 border border-blue-200 shadow-2xs">
           <span>🏫 {{ schoolName }}</span>
           <span class="text-slate-300">|</span>
-          <span>{{ displaySystemName }}</span>
+          <span class="portal-title-font">{{ displaySystemName }}</span>
         </div>
-        <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-3">
+        <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-3 portal-title-font min-h-[2.5rem]">
           {{ displaySystemName }}
         </h2>
         <p class="text-base text-slate-600 leading-relaxed">
@@ -91,7 +91,7 @@
           :class="[
             'group relative bg-white rounded-3xl p-6 sm:p-7 border shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden',
             isStudentPrincipalLocked
-              ? 'border-slate-300/80 bg-slate-50/90 opacity-60 grayscale-[35%] cursor-not-allowed hover:shadow-sm'
+              ? 'border-slate-300/80 bg-slate-50/90 opacity-60 grayscale-35 cursor-not-allowed hover:shadow-sm'
               : 'border-slate-200/80 hover:shadow-xl hover:border-blue-500 cursor-pointer'
           ]"
         >
@@ -381,7 +381,10 @@
         <div
           v-else-if="mod.id === 'stat' && isModuleVisible('stat')"
           @click="enterStatSystem"
-          class="group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-500 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+          :class="[
+            'group relative bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-500 transition-all duration-300 flex flex-col justify-between overflow-hidden',
+            isCheckingStat ? 'cursor-wait pointer-events-none ring-2 ring-indigo-400 opacity-95' : 'cursor-pointer'
+          ]"
         >
           <div class="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
 
@@ -413,12 +416,9 @@
           </div>
 
           <div class="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between text-sm font-bold text-indigo-600">
-            <span v-if="isCheckingStat" class="inline-flex items-center gap-2 text-indigo-500 font-medium">
-              <svg class="animate-spin h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              보안 인증 확인 중...
+            <span v-if="isCheckingStat" class="inline-flex items-center gap-2 text-indigo-600 font-extrabold animate-pulse">
+              <div class="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>{{ statLoadingMessage || '대입 통계 시스템 로딩 중...' }}</span>
             </span>
             <span v-else>통계 대시보드 바로가기</span>
             <svg v-if="!isCheckingStat" class="w-5 h-5 group-hover:translate-x-1.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -430,6 +430,31 @@
         </template>
       </div>
     </main>
+
+    <!-- 🌀 대입 통계 시스템 진입 로딩 오버레이 (뱅글뱅글 돌아가는 로딩 표시) -->
+    <div
+      v-if="isCheckingStat"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200"
+    >
+      <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-5 animate-in fade-in zoom-in-95 duration-150">
+        <!-- 뱅글뱅글 돌아가는 인디고 로딩 스피너 -->
+        <div class="relative flex items-center justify-center">
+          <div class="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin shadow-inner"></div>
+          <span class="absolute text-2xl select-none">📊</span>
+        </div>
+        <div class="space-y-1.5">
+          <h4 class="text-base sm:text-lg font-black text-slate-900 m-0">
+            대입 통계 시스템 로딩 중
+          </h4>
+          <p class="text-xs text-indigo-600 font-bold m-0 leading-relaxed">
+            {{ statLoadingMessage || '원자료 보안 상태를 점검하고 있습니다...' }}
+          </p>
+          <p class="text-[11.5px] text-slate-400 font-medium m-0 mt-1">
+            잠시만 기다려 주세요. 곧 대시보드로 이동합니다.
+          </p>
+        </div>
+      </div>
+    </div>
 
     <!-- 🔐 대입 통계 시스템 보안 암호 입력 모달 -->
     <div
@@ -516,7 +541,7 @@
     <!-- 하단 푸터 -->
     <footer class="py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
       <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-        <p class="m-0">© {{ new Date().getFullYear() }} {{ schoolName }} {{ displaySystemName }}</p>
+        <p class="m-0 portal-title-font">© {{ new Date().getFullYear() }} {{ schoolName }} {{ displaySystemName }}</p>
         <span class="hidden sm:inline text-slate-300">•</span>
         <div class="relative group inline-flex items-center">
           <span class="text-slate-400 mr-1">License:</span>
@@ -598,7 +623,7 @@ const isPrincipalSystemEnabled = ref(true)
 const isRollbookSystemEnabled = ref(true)
 const suiteModules = ref(DEFAULT_SUITE_MODULES.map(m => ({ ...m })))
 
-const displaySystemName = computed(() => loginSystemName.value || DEFAULT_SYSTEM_NAME || '3학년 진학·학사 통합 포털')
+const displaySystemName = computed(() => loginSystemName.value || '')
 
 function checkModuleScheduleAccess(moduleId) {
   if (auth.isAdmin) return true
@@ -737,13 +762,14 @@ const portalGridClass = computed(() => {
   return 'grid-cols-1 max-w-xl'
 })
 
-// 대입 통계 시스템 보안 암호 상태
+// 대입 통계 시스템 보안 암호 및 로딩 상태
 const showStatPasswordModal = ref(false)
 const statInputPassword = ref('')
 const isVerifyingPassword = ref(false)
 const statPasswordError = ref('')
 const statPwInputRef = ref(null)
 const isCheckingStat = ref(false)
+const statLoadingMessage = ref('')
 
 async function enterStatSystem() {
   if (isCheckingStat.value) return
@@ -759,35 +785,34 @@ async function enterStatSystem() {
 
   const existingPw = getStatSessionPassword()
 
-  // 1. 세션에 암호가 아예 없는 경우: 모달 오픈하여 사용자 입력 대기
-  if (!existingPw) {
-    statPasswordError.value = ''
-    statInputPassword.value = ''
-    isVerifyingPassword.value = false
-    showStatPasswordModal.value = true
-    nextTick(() => {
-      statPwInputRef.value?.focus()
-    })
-    return
-  }
-
-  // 2. 세션 암호가 있는 경우:
-  // ★ 창을 미리 띄우지 않고 내부적으로 먼저 비교!
-  // 암호가 일치하면 모달을 아예 띄우지 않고 즉시 대시보드(/stat)로 입장.
-  // 암호가 불일치할 때만 모달을 띄워 올바른 암호 입력을 요구.
   isCheckingStat.value = true
+  statLoadingMessage.value = '대교협 원자료 보안 상태 및 세션을 확인하고 있습니다...'
   statPasswordError.value = ''
+
+  let shouldKeepLoading = false
 
   try {
     const sheetId = await getKcueSheetId()
+    // 1. 시트가 비암호화 상태이거나 기존 세션 암호로 복호화 가능한지 먼저 비동기 확인
     const verifyRes = await verifyStatSheetPassword(sheetId, existingPw)
     if (verifyRes.success) {
-      // ⭕ 일치: 모달을 전혀 열지 않고 즉시 대시보드 입장!
-      router.push('/stat')
+      // ⭕ 통과 (시트 미암호화 또는 세션 암호 일치): 모달 없이 즉시 대시보드 입장!
+      shouldKeepLoading = true
+      statLoadingMessage.value = '대입 통계 대시보드를 불러오는 중입니다...'
+      try {
+        await router.push('/stat')
+      } catch (err) {
+        console.error('Failed to navigate to /stat:', err)
+        isCheckingStat.value = false
+        shouldKeepLoading = false
+      }
       return
     }
-    // ❌ 불일치: 모달을 띄우고 사유 안내
-    statPasswordError.value = '시스템 로그인 암호와 구글 시트 복호화 암호가 일치하지 않습니다. 구글 시트 암호화에 사용한 암호를 입력해 주세요.'
+
+    // ❌ 시트가 암호화되어 있고 비밀번호가 없거나 불일치할 때만 모달 오픈
+    statPasswordError.value = existingPw
+      ? '시스템 로그인 암호와 구글 시트 복호화 암호가 일치하지 않습니다. 구글 시트 암호화에 사용한 암호를 입력해 주세요.'
+      : ''
     statInputPassword.value = ''
     isVerifyingPassword.value = false
     showStatPasswordModal.value = true
@@ -803,7 +828,10 @@ async function enterStatSystem() {
       statPwInputRef.value?.focus()
     })
   } finally {
-    isCheckingStat.value = false
+    if (!shouldKeepLoading) {
+      isCheckingStat.value = false
+      statLoadingMessage.value = ''
+    }
   }
 }
 
@@ -830,7 +858,15 @@ async function submitStatPassword() {
     // ⭕ 인증 성공: 브라우저 세션에 저장하고 시스템 대문 통과
     setStatSessionPassword(pw)
     showStatPasswordModal.value = false
-    router.push('/stat')
+    isCheckingStat.value = true
+    statLoadingMessage.value = '대입 통계 대시보드를 불러오는 중입니다...'
+    try {
+      await router.push('/stat')
+    } catch (err) {
+      console.error('Failed to navigate to /stat:', err)
+      isCheckingStat.value = false
+      statLoadingMessage.value = ''
+    }
   } catch (err) {
     statPasswordError.value = '인증 중 오류가 발생했습니다: ' + (err.message || '')
   } finally {
@@ -1006,6 +1042,8 @@ async function loadPrincipalStatus() {
 }
 
 onMounted(async () => {
+  isCheckingStat.value = false
+  statLoadingMessage.value = ''
   await fetchLoginSystemName()
   // 대입 통계 구글 시트 암호문 샘플 백그라운드 초고속 사전 로드 (포털 진입 즉시 병렬 시작)
   getKcueSheetId().then(sheetId => {

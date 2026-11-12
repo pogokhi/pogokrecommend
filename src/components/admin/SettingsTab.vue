@@ -68,7 +68,7 @@
             v-model="inputLoginSystemName"
             type="text"
             required
-            placeholder="예: 3학년 진학·학사 통합 포털"
+            placeholder="예: 3학년 포털"
             class="flex-1 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800 dark:text-white font-semibold"
           />
           <button
@@ -83,7 +83,7 @@
         <div class="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
           <span class="font-bold text-blue-600">미리보기:</span>
           <span class="font-extrabold text-blue-700">[{{ inputSchoolName || '우리고등학교' }}]</span>
-          <span class="font-black text-slate-900 dark:text-white text-sm">{{ inputLoginSystemName || '3학년 진학·학사 통합 포털' }}</span>
+          <span class="font-black text-slate-900 dark:text-white text-sm">{{ inputLoginSystemName || '시스템 명칭 미설정' }}</span>
         </div>
       </div>
 
@@ -408,11 +408,11 @@
             </div>
           </div>
 
-          <!-- 3. 대교협 수시 지원 원자료 구글 시트 ID (꼼스탯 통계) -->
+          <!-- 3. 대교협 수시 지원 및 모의고사 성적 구글 시트 ID (꼼스탯 통계) -->
           <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
             <div class="flex items-center justify-between">
               <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                3) 대교협 수시 지원 원자료 구글 시트 ID (수시 지원 통계 분석 시스템)
+                3) 대교협 수시 지원 및 모의고사 성적 구글 시트 ID (수시 및 모의고사 통계 분석 시스템)
               </label>
               <a
                 v-if="realGoogleSheetKcueId"
@@ -436,12 +436,10 @@
               <p class="m-0 text-slate-600 dark:text-slate-300 leading-normal">
                 대입학년도마다 별도의 시트 파일을 만들지 않고 <strong>본 구글 시트 1개</strong> 안에 시트 탭(
                 <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2027수시</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2027모의결과</code>, 
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2027모의가채점</code>, 
                 <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2026수시</code>, 
-                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-indigo-600 dark:text-indigo-300">2025수시</code>, 
-                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-purple-600 dark:text-purple-300">2027정시</code>, 
-                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-purple-600 dark:text-purple-300">2026정시</code>, 
-                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-emerald-600 dark:text-emerald-300">2027통계</code>, 
-                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-emerald-600 dark:text-emerald-300">2026통계</code> 등)을 추가하여 모든 학년도와 전형 자료를 하나로 통합 관리합니다.
+                <code class="px-1 py-0.2 bg-white dark:bg-slate-800 rounded font-mono font-bold text-emerald-600 dark:text-emerald-300">2027통계</code> 등)을 추가하여 모든 학년도와 모의고사 자료를 하나로 통합 관리합니다.
               </p>
             </div>
 
@@ -449,7 +447,7 @@
               <input
                 v-model="googleSheetKcueId"
                 type="text"
-                :placeholder="hasGoogleSheetKcueId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력 (예: 1U5Vnx2x8gn...)'"
+                :placeholder="hasGoogleSheetKcueId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력 (예: 1hkgi-WKdbh...)'"
                 class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-white"
               />
               <button
@@ -460,13 +458,66 @@
                 {{ googleSheetKcueLoading ? '저장 중…' : 'ID 저장' }}
               </button>
             </div>
+            <p class="text-[11px] text-amber-700 dark:text-amber-400 m-0 leading-relaxed">
+              ⚠️ <strong>시트 ID 구분 필수:</strong> 배포용 암호화 시트 ID(<code>1U5Vnx...</code>)가 아니라, <strong>원본 대교협/모의고사 성적 시트 ID(<code>1hkgi-WKdbh_cIK1Ctzv3BBxqKLe50DCKAT8cmT9wbWg</code>)</strong>를 등록하셔야 모의고사 성적 원자료가 올바른 원본 시트의 [2027모의결과] 탭에 적재됩니다.
+            </p>
+
+            <!-- 모의고사 성적 실시간 쓰기 연동용 GAS Web App URL (선택사항) -->
+            <div class="pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-1.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span class="text-[11.5px] font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                  <span>⚡</span>
+                  <span>모의고사 성적 원격 자동 적재용 Web App URL (선택사항)</span>
+                </span>
+                <div class="flex items-center gap-2">
+                  <a
+                    v-if="realGoogleSheetKcueGasUrl"
+                    :href="realGoogleSheetKcueGasUrl"
+                    target="_blank"
+                    class="text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <span>🔗 웹앱 응답 확인</span>
+                  </a>
+                  <span class="text-[10px] text-slate-400">등록 시 1클릭 원격 자동 저장 활성화</span>
+                </div>
+              </div>
+              <p class="text-[10.5px] text-slate-500 m-0 leading-relaxed">
+                원본 구글 시트의 [확장 프로그램] ➔ [Apps Script]에서 웹 앱으로 배포한 URL(<code>https://script.google.com/macros/s/.../exec</code>)을 입력하고 저장하세요.
+              </p>
+              <div class="flex gap-2">
+                <input
+                  v-model="googleSheetKcueGasUrl"
+                  type="text"
+                  @focus="handleKcueGasFocus"
+                  @blur="handleKcueGasBlur"
+                  :placeholder="hasGoogleSheetKcueGasUrl ? '저장된 Web App URL (클릭하여 새로 입력)' : 'https://script.google.com/macros/s/.../exec'"
+                  class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-white"
+                />
+                <button
+                  type="button"
+                  v-if="hasGoogleSheetKcueGasUrl"
+                  @click="toggleShowKcueGasUrl"
+                  class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                  :title="showKcueGasUrl ? 'URL 마스킹' : '전체 URL 보기'"
+                >
+                  {{ showKcueGasUrl ? '🙈 숨김' : '👁️ 전체보기' }}
+                </button>
+                <button
+                  @click="saveGoogleSheetKcueGasUrl"
+                  :disabled="googleSheetKcueGasLoading"
+                  class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 border-none rounded-lg px-4 cursor-pointer transition-colors whitespace-nowrap shadow-2xs"
+                >
+                  {{ googleSheetKcueGasLoading ? '저장 중…' : 'URL 저장' }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- 4. 2027 대입 일정 구글 스프레드시트 ID (로그인 화면 캘린더 연동) -->
           <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
             <div class="flex items-center justify-between">
               <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                4) 2027 대입 일정 구글 스프레드시트 ID (로그인 화면 캘린더 연동)
+                4) 2027 대입 일정 구글 스프레드시트 ID (로그인 화면 캘린더 연동) <span class="text-rose-500 font-extrabold">*필수</span>
               </label>
               <a
                 v-if="realAdmissionSheetId"
@@ -484,7 +535,7 @@
               <input
                 v-model="admissionSheetIdInput"
                 type="text"
-                :placeholder="hasAdmissionSheetId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력'"
+                :placeholder="hasAdmissionSheetId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력 (필수)'"
                 class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 text-slate-800 dark:text-white"
               />
               <button
@@ -502,6 +553,88 @@
                 <span>🔄</span>
                 <span>{{ admissionRefreshLoading ? '동기화 중…' : '캘린더 즉시 갱신' }}</span>
               </button>
+            </div>
+          </div>
+
+          <!-- 5. 선택교과 출석관리 구글 스프레드시트 ID -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                5) 선택교과 출석관리 구글 스프레드시트 ID (고3 이동수업 · 원적학급 출석부) <span class="text-rose-500 font-extrabold">*필수</span>
+              </label>
+              <a
+                v-if="realGoogleSheetRollbookId"
+                :href="`https://docs.google.com/spreadsheets/d/${realGoogleSheetRollbookId}/edit`"
+                target="_blank"
+                class="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold flex items-center gap-1 hover:underline"
+              >
+                <span>🔗 시트 바로 열기</span>
+              </a>
+            </div>
+            <p class="text-[11px] text-slate-500 m-0 leading-relaxed">
+              출석관리 구글 시트 ID 또는 전체 URL을 입력하면 자동으로 ID만 추출하여 안전하게 저장됩니다.
+            </p>
+            <div class="flex gap-2">
+              <input
+                v-model="googleSheetRollbookId"
+                type="text"
+                :placeholder="hasGoogleSheetRollbookId ? '저장된 ID (마스킹됨)' : 'ID 또는 전체 시트 URL 입력 (필수)'"
+                class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-white"
+              />
+              <button
+                @click="saveGoogleSheetRollbookId"
+                :disabled="googleSheetRollbookLoading"
+                class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 border-none rounded-lg px-4 cursor-pointer transition-colors whitespace-nowrap"
+              >
+                {{ googleSheetRollbookLoading ? '저장 중…' : 'ID 저장' }}
+              </button>
+            </div>
+
+            <!-- 시트 실시간 쓰기 연동용 GAS Web App URL (선택사항) -->
+            <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <span>⚡</span>
+                  <span>실시간 시트 쓰기 연동용 GAS Web App URL (선택사항)</span>
+                </span>
+                <div class="flex items-center gap-2">
+                  <a
+                    v-if="realGoogleSheetRollbookGasUrl"
+                    :href="realGoogleSheetRollbookGasUrl"
+                    target="_blank"
+                    class="text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <span>🔗 웹앱 응답 확인</span>
+                  </a>
+                  <span class="text-[10px] text-slate-400">구글 시트 '출결기록' 탭에 실시간 저장이 필요할 때 입력</span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <input
+                  v-model="googleSheetRollbookGasUrl"
+                  type="text"
+                  @focus="handleRollbookGasFocus"
+                  @blur="handleRollbookGasBlur"
+                  :placeholder="hasGoogleSheetRollbookGasUrl ? '저장된 Web App URL (클릭하여 새로 입력)' : 'https://script.google.com/macros/s/.../exec'"
+                  class="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-800 dark:text-white"
+                />
+                <button
+                  type="button"
+                  v-if="hasGoogleSheetRollbookGasUrl"
+                  @click="toggleShowRollbookGasUrl"
+                  class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer whitespace-nowrap"
+                  :title="showRollbookGasUrl ? 'URL 마스킹' : '전체 URL 보기'"
+                >
+                  {{ showRollbookGasUrl ? '🙈 숨김' : '👁️ 전체보기' }}
+                </button>
+                <button
+                  @click="saveGoogleSheetRollbookGasUrl"
+                  :disabled="googleSheetRollbookGasLoading"
+                  class="text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg px-3.5 cursor-pointer transition-colors whitespace-nowrap"
+                >
+                  {{ googleSheetRollbookGasLoading ? '저장 중…' : 'URL 저장' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -776,7 +909,7 @@
                         type="button"
                         @click.stop="setPresetExpireDate(m, 0)"
                         class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
-                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === todayIsoDate }"
+                        :class="{ 'bg-amber-600! text-white! border-amber-700!': m.secretAccessExpireDate === todayIsoDate }"
                       >
                         오늘까지
                       </button>
@@ -784,7 +917,7 @@
                         type="button"
                         @click.stop="setPresetExpireDate(m, 1)"
                         class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
-                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(1) }"
+                        :class="{ 'bg-amber-600! text-white! border-amber-700!': m.secretAccessExpireDate === getNextDayIsoDate(1) }"
                       >
                         내일(+1일)
                       </button>
@@ -792,7 +925,7 @@
                         type="button"
                         @click.stop="setPresetExpireDate(m, 2)"
                         class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
-                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(2) }"
+                        :class="{ 'bg-amber-600! text-white! border-amber-700!': m.secretAccessExpireDate === getNextDayIsoDate(2) }"
                       >
                         모레(+2일)
                       </button>
@@ -800,7 +933,7 @@
                         type="button"
                         @click.stop="setPresetExpireDate(m, 6)"
                         class="px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-200 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
-                        :class="{ '!bg-amber-600 !text-white !border-amber-700': m.secretAccessExpireDate === getNextDayIsoDate(6) }"
+                        :class="{ 'bg-amber-600! text-white! border-amber-700!': m.secretAccessExpireDate === getNextDayIsoDate(6) }"
                       >
                         7일간
                       </button>
@@ -972,6 +1105,36 @@ function maskGoogleSheetId(id) {
   return str.slice(0, 4) + '••••••••••••••••' + str.slice(-4)
 }
 
+/**
+ * 구글 Apps Script Web App 배포 URL 전용 마스킹
+ * 실제 Web App ID의 앞 4글자 및 뒷 4글자를 노출하여 올바른 등록 여부 확인 지원
+ */
+function maskGasUrl(url) {
+  if (!url) return ''
+  const str = String(url).trim()
+  if (!str) return ''
+  if (str.includes('•')) return str
+
+  // https://script.google.com/macros/s/{DEPLOYMENT_ID}/exec
+  const match = str.match(/^(https?:\/\/script\.google\.com\/macros\/s\/)([^\/\?]+)(\/exec.*)?$/i)
+  if (match) {
+    const prefix = match[1]
+    const id = match[2]
+    const suffix = match[3] || '/exec'
+    const idHead = id.slice(0, 4)
+    const idTail = id.length > 8 ? id.slice(-4) : ''
+    return `${prefix}${idHead}••••••••${idTail}${suffix}`
+  }
+
+  // 배포 ID만 직접 입력된 경우
+  if (!str.startsWith('http')) {
+    if (str.length <= 8) return str.slice(0, 4) + '••••'
+    return str.slice(0, 4) + '••••••••' + str.slice(-4)
+  }
+
+  return str.slice(0, 10) + '••••••••' + str.slice(-6)
+}
+
 const inputSchoolName = ref('')
 const schoolNameLoading = ref(false)
 
@@ -1000,11 +1163,28 @@ const realGoogleSheetKcueId = ref('')
 const googleSheetKcueLoading = ref(false)
 const hasGoogleSheetKcueId = ref(false)
 
+const googleSheetKcueGasUrl = ref('')
+const realGoogleSheetKcueGasUrl = ref('')
+const hasGoogleSheetKcueGasUrl = ref(false)
+const googleSheetKcueGasLoading = ref(false)
+const showKcueGasUrl = ref(false)
+
 const admissionSheetIdInput = ref('')
 const realAdmissionSheetId = ref('')
 const hasAdmissionSheetId = ref(false)
 const admissionSheetLoading = ref(false)
 const admissionRefreshLoading = ref(false)
+
+const googleSheetRollbookId = ref('')
+const realGoogleSheetRollbookId = ref('')
+const hasGoogleSheetRollbookId = ref(false)
+const googleSheetRollbookLoading = ref(false)
+
+const googleSheetRollbookGasUrl = ref('')
+const realGoogleSheetRollbookGasUrl = ref('')
+const hasGoogleSheetRollbookGasUrl = ref(false)
+const googleSheetRollbookGasLoading = ref(false)
+const showRollbookGasUrl = ref(false)
 
 const allowAreaEdit = ref(false)
 const areaEditLoading = ref(false)
@@ -1412,10 +1592,30 @@ async function loadConfig() {
     hasGoogleSheetKcueId.value = !!dbKcueId
     googleSheetKcueId.value = dbKcueId ? maskGoogleSheetId(dbKcueId) : ''
 
+    const dbKcueGasUrl = configMap['google_sheet_kcue_gas_url'] || localStorage.getItem('pcm_google_sheet_kcue_gas_url') || localStorage.getItem('ggom_master_gas_webapp_url') || ''
+    realGoogleSheetKcueGasUrl.value = dbKcueGasUrl
+    hasGoogleSheetKcueGasUrl.value = !!dbKcueGasUrl
+    googleSheetKcueGasUrl.value = dbKcueGasUrl ? maskGasUrl(dbKcueGasUrl) : ''
+
     const dbAdmissionId = await getAdmissionSheetId(false)
     realAdmissionSheetId.value = dbAdmissionId
     hasAdmissionSheetId.value = !!dbAdmissionId
     admissionSheetIdInput.value = dbAdmissionId ? maskGoogleSheetId(dbAdmissionId) : ''
+
+    const dbRollbookId = configMap['google_sheet_rollbook_id'] || localStorage.getItem('pcm_google_sheet_rollbook_id') || ''
+    realGoogleSheetRollbookId.value = dbRollbookId
+    hasGoogleSheetRollbookId.value = !!dbRollbookId
+    googleSheetRollbookId.value = dbRollbookId ? maskGoogleSheetId(dbRollbookId) : ''
+    if (dbRollbookId) {
+      localStorage.setItem('pcm_google_sheet_rollbook_id', dbRollbookId)
+    } else {
+      localStorage.removeItem('pcm_google_sheet_rollbook_id')
+    }
+
+    const dbRollbookGasUrl = configMap['google_sheet_rollbook_gas_url'] || localStorage.getItem('ggom_gas_webapp_url') || ''
+    realGoogleSheetRollbookGasUrl.value = dbRollbookGasUrl
+    hasGoogleSheetRollbookGasUrl.value = !!dbRollbookGasUrl
+    googleSheetRollbookGasUrl.value = dbRollbookGasUrl ? maskGasUrl(dbRollbookGasUrl) : ''
 
     if (configMap['allow_area_edit']) {
       allowAreaEdit.value = configMap['allow_area_edit'] === 'true'
@@ -1558,6 +1758,64 @@ async function saveGoogleSheetKcueId() {
   }
 }
 
+async function saveGoogleSheetKcueGasUrl() {
+  googleSheetKcueGasLoading.value = true
+  try {
+    const inputVal = googleSheetKcueGasUrl.value.trim()
+    let targetVal = inputVal
+    if (inputVal.includes('•')) {
+      targetVal = realGoogleSheetKcueGasUrl.value
+    } else {
+      realGoogleSheetKcueGasUrl.value = targetVal
+    }
+
+    if (supabase) {
+      const { error } = await supabase.from('config').upsert({ key: 'google_sheet_kcue_gas_url', value: targetVal }, { onConflict: 'key' })
+      if (error) throw error
+    }
+
+    if (targetVal) {
+      localStorage.setItem('pcm_google_sheet_kcue_gas_url', targetVal)
+      localStorage.setItem('ggom_master_gas_webapp_url', targetVal)
+    } else {
+      localStorage.removeItem('pcm_google_sheet_kcue_gas_url')
+      localStorage.removeItem('ggom_master_gas_webapp_url')
+    }
+
+    hasGoogleSheetKcueGasUrl.value = !!targetVal
+    googleSheetKcueGasUrl.value = targetVal ? (showKcueGasUrl.value ? targetVal : maskGasUrl(targetVal)) : ''
+    alert(targetVal ? '대교협 및 모의고사 구글 시트 Web App URL이 저장되었습니다.' : 'Web App URL이 삭제되었습니다.')
+  } catch (e) {
+    console.error(e)
+    alert('Web App URL 저장 중 오류가 발생했습니다: ' + e.message)
+  } finally {
+    googleSheetKcueGasLoading.value = false
+  }
+}
+
+function toggleShowKcueGasUrl() {
+  showKcueGasUrl.value = !showKcueGasUrl.value
+  if (showKcueGasUrl.value) {
+    googleSheetKcueGasUrl.value = realGoogleSheetKcueGasUrl.value
+  } else {
+    googleSheetKcueGasUrl.value = maskGasUrl(realGoogleSheetKcueGasUrl.value)
+  }
+}
+
+function handleKcueGasFocus() {
+  if (googleSheetKcueGasUrl.value.includes('•')) {
+    googleSheetKcueGasUrl.value = realGoogleSheetKcueGasUrl.value
+  }
+}
+
+function handleKcueGasBlur() {
+  if (!showKcueGasUrl.value && googleSheetKcueGasUrl.value === realGoogleSheetKcueGasUrl.value) {
+    googleSheetKcueGasUrl.value = maskGasUrl(realGoogleSheetKcueGasUrl.value)
+  } else if (!googleSheetKcueGasUrl.value && realGoogleSheetKcueGasUrl.value) {
+    googleSheetKcueGasUrl.value = maskGasUrl(realGoogleSheetKcueGasUrl.value)
+  }
+}
+
 async function handleSaveAdmissionSheetId() {
   admissionSheetLoading.value = true
   try {
@@ -1570,10 +1828,16 @@ async function handleSaveAdmissionSheetId() {
       realAdmissionSheetId.value = targetVal
     }
 
+    if (!targetVal) {
+      alert('2027 대입 일정 구글 스프레드시트 ID는 필수 입력 항목입니다. 시트 ID 또는 URL을 입력해 주세요.')
+      admissionSheetLoading.value = false
+      return
+    }
+
     await saveAdmissionSheetId(targetVal)
     hasAdmissionSheetId.value = !!targetVal
     admissionSheetIdInput.value = targetVal ? maskGoogleSheetId(targetVal) : ''
-    alert(targetVal ? '2027 대입 일정 구글 스프레드시트 ID가 저장되었습니다.' : '대입 일정 시트 ID가 삭제(초기화)되었습니다.')
+    alert('2027 대입 일정 구글 스프레드시트 ID가 저장되었습니다.')
   } catch (e) {
     console.error(e)
     alert('대입 일정 시트 ID 저장 중 오류가 발생했습니다.')
@@ -1592,6 +1856,102 @@ async function handleRefreshAdmissionData() {
     alert(`동기화 실패: ${e.message}`)
   } finally {
     admissionRefreshLoading.value = false
+  }
+}
+
+async function saveGoogleSheetRollbookId() {
+  googleSheetRollbookLoading.value = true
+  try {
+    const inputVal = googleSheetRollbookId.value.trim()
+    let targetVal = inputVal
+    if (inputVal.includes('•')) {
+      targetVal = realGoogleSheetRollbookId.value
+    } else {
+      targetVal = extractSheetId(inputVal)
+      realGoogleSheetRollbookId.value = targetVal
+    }
+
+    if (!targetVal) {
+      alert('선택교과 출석관리 구글 스프레드시트 ID는 필수 입력 항목입니다. 시트 ID 또는 URL을 입력해 주세요.')
+      googleSheetRollbookLoading.value = false
+      return
+    }
+
+    if (supabase) {
+      const { error } = await supabase.from('config').upsert({ key: 'google_sheet_rollbook_id', value: targetVal }, { onConflict: 'key' })
+      if (error) throw error
+    }
+
+    if (targetVal) {
+      localStorage.setItem('pcm_google_sheet_rollbook_id', targetVal)
+    } else {
+      localStorage.removeItem('pcm_google_sheet_rollbook_id')
+    }
+
+    hasGoogleSheetRollbookId.value = !!targetVal
+    googleSheetRollbookId.value = targetVal ? maskGoogleSheetId(targetVal) : ''
+    alert('선택교과 출석관리 구글 스프레드시트 ID가 저장되었습니다.')
+  } catch (e) {
+    console.error(e)
+    alert('출석관리 구글 시트 ID 저장 중 오류가 발생했습니다: ' + e.message)
+  } finally {
+    googleSheetRollbookLoading.value = false
+  }
+}
+
+async function saveGoogleSheetRollbookGasUrl() {
+  googleSheetRollbookGasLoading.value = true
+  try {
+    const inputVal = googleSheetRollbookGasUrl.value.trim()
+    let targetVal = inputVal
+    if (inputVal.includes('•')) {
+      targetVal = realGoogleSheetRollbookGasUrl.value
+    } else {
+      realGoogleSheetRollbookGasUrl.value = targetVal
+    }
+
+    if (supabase) {
+      const { error } = await supabase.from('config').upsert({ key: 'google_sheet_rollbook_gas_url', value: targetVal }, { onConflict: 'key' })
+      if (error) throw error
+    }
+
+    if (targetVal) {
+      localStorage.setItem('ggom_gas_webapp_url', targetVal)
+    } else {
+      localStorage.removeItem('ggom_gas_webapp_url')
+    }
+
+    hasGoogleSheetRollbookGasUrl.value = !!targetVal
+    googleSheetRollbookGasUrl.value = targetVal ? (showRollbookGasUrl.value ? targetVal : maskGasUrl(targetVal)) : ''
+    alert(targetVal ? '선택교과 출석관리 GAS Web App URL이 저장되었습니다.' : '출석관리 GAS URL이 삭제되었습니다.')
+  } catch (e) {
+    console.error(e)
+    alert('출석관리 GAS URL 저장 중 오류가 발생했습니다: ' + e.message)
+  } finally {
+    googleSheetRollbookGasLoading.value = false
+  }
+}
+
+function toggleShowRollbookGasUrl() {
+  showRollbookGasUrl.value = !showRollbookGasUrl.value
+  if (showRollbookGasUrl.value) {
+    googleSheetRollbookGasUrl.value = realGoogleSheetRollbookGasUrl.value
+  } else {
+    googleSheetRollbookGasUrl.value = maskGasUrl(realGoogleSheetRollbookGasUrl.value)
+  }
+}
+
+function handleRollbookGasFocus() {
+  if (googleSheetRollbookGasUrl.value.includes('•')) {
+    googleSheetRollbookGasUrl.value = realGoogleSheetRollbookGasUrl.value
+  }
+}
+
+function handleRollbookGasBlur() {
+  if (!showRollbookGasUrl.value && googleSheetRollbookGasUrl.value === realGoogleSheetRollbookGasUrl.value) {
+    googleSheetRollbookGasUrl.value = maskGasUrl(realGoogleSheetRollbookGasUrl.value)
+  } else if (!googleSheetRollbookGasUrl.value && realGoogleSheetRollbookGasUrl.value) {
+    googleSheetRollbookGasUrl.value = maskGasUrl(realGoogleSheetRollbookGasUrl.value)
   }
 }
 

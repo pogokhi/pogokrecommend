@@ -30,7 +30,7 @@ export function decryptAES(cipherText, password) {
 }
 
 export const KCUE_SHEET_KEY = 'google_sheet_kcue_id'
-export const DEFAULT_KCUE_SHEET_ID = '1U5Vnx2x8gnXQlI3N4deyaurKxj-naZP0cRBb3lQnT4o'
+export const DEFAULT_KCUE_SHEET_ID = '1hkgi-WKdbh_cIK1Ctzv3BBxqKLe50DCKAT8cmT9wbWg'
 
 // 하위 호환성을 위한 키 및 기본값
 export const KCUE_YEAR_SHEETS_KEY = 'kcue_year_sheets'
@@ -43,7 +43,7 @@ export const DEFAULT_KCUE_YEAR_SHEETS = {
 }
 
 // 대입 학년도 및 전형 시기/통계 탭 표준 목록
-export const STANDARD_KCUE_YEARS = ['2027', '2026', '2025', '2024', '2023']
+export const STANDARD_KCUE_YEARS = ['2028', '2027', '2026', '2025', '2024', '2023']
 
 export const STANDARD_KCUE_TABS = [
   { key: '기본통계', year: '전체', type: '기본통계', category: 'basic', label: '학년도별 기본통계 (3학년 학생수·학급수)', isDefault: false },
@@ -53,7 +53,10 @@ export const STANDARD_KCUE_TABS = [
   { key: '2027정시', year: '2027', type: '정시', category: 'jungsi', label: '2027학년도 정시 지원 원자료' },
   { key: '2026정시', year: '2026', type: '정시', category: 'jungsi', label: '2026학년도 정시 지원 원자료' },
   { key: '2025정시', year: '2025', type: '정시', category: 'jungsi', label: '2025학년도 정시 지원 원자료' },
+  { key: '2027모의결과', year: '2027', type: '모의결과', category: 'mock', label: '2027학년도 모의고사 결과 원자료 (성적일람표 확정)', isDefault: false },
+  { key: '2027모의가채점', year: '2027', type: '가채점', category: 'mock', label: '2027학년도 가채점 원자료 (모의고사)', isDefault: false },
   { key: '2027가채점', year: '2027', type: '가채점', category: 'mock', label: '2027학년도 가채점 원자료 (모의고사)', isDefault: false },
+  { key: '진급명렬', year: '전체', type: '진급명렬', category: 'promotion', label: '신학년도 진급명렬 (학생 학적 및 성적 이관)', isDefault: false },
   { key: '2027통계', year: '2027', type: '통계', category: 'stat', label: '2027학년도 통계 요약 (선택)' },
   { key: '2026통계', year: '2026', type: '통계', category: 'stat', label: '2026학년도 통계 요약 (선택)' },
   { key: '2025통계', year: '2025', type: '통계', category: 'stat', label: '2025학년도 통계 요약 (선택)' }
@@ -77,9 +80,10 @@ export function getKcueTabName(year, type = '수시') {
 /**
  * 대교협 구글 스프레드시트 웹 접속 URL
  */
-export function buildSheetWebUrl(sheetId = null) {
+export function buildSheetWebUrl(sheetId = null, gid = null) {
   const cleanId = sheetId ? extractSheetId(sheetId) : DEFAULT_KCUE_SHEET_ID
-  return `https://docs.google.com/spreadsheets/d/${cleanId}/edit`
+  const hash = gid ? `#gid=${gid}` : ''
+  return `https://docs.google.com/spreadsheets/d/${cleanId}/edit${hash}`
 }
 
 /**
@@ -150,6 +154,80 @@ export async function saveKcueSheetId(id) {
   return cleanId
 }
 
+export const KCUE_GAS_URL_KEY = 'google_sheet_kcue_gas_url'
+
+/**
+ * 대교협 및 모의고사 성적 실시간 쓰기 연동용 GAS Web App URL 조회
+ */
+export async function getKcueGasUrl() {
+  const cached = localStorage.getItem(`pcm_${KCUE_GAS_URL_KEY}`) || localStorage.getItem('ggom_master_gas_webapp_url')
+  let gasUrl = cached ? cached.trim() : ''
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('config')
+        .select('value')
+        .eq('key', KCUE_GAS_URL_KEY)
+        .maybeSingle()
+
+      if (!error && data && data.value != null && String(data.value).trim()) {
+        gasUrl = String(data.value).trim()
+        localStorage.setItem(`pcm_${KCUE_GAS_URL_KEY}`, gasUrl)
+        localStorage.setItem('ggom_master_gas_webapp_url', gasUrl)
+      }
+    } catch (_) {}
+  }
+
+  return gasUrl
+}
+
+/**
+ * 대교협 및 모의고사 성적 실시간 쓰기 연동용 GAS Web App URL 저장
+ */
+export async function saveKcueGasUrl(url) {
+  const cleanUrl = (url || '').trim()
+  if (supabase) {
+    const { error } = await supabase
+      .from('config')
+      .upsert({ key: KCUE_GAS_URL_KEY, value: cleanUrl }, { onConflict: 'key' })
+    if (error) throw error
+  }
+  if (cleanUrl) {
+    localStorage.setItem(`pcm_${KCUE_GAS_URL_KEY}`, cleanUrl)
+    localStorage.setItem('ggom_master_gas_webapp_url', cleanUrl)
+  } else {
+    localStorage.removeItem(`pcm_${KCUE_GAS_URL_KEY}`)
+    localStorage.removeItem('ggom_master_gas_webapp_url')
+  }
+  return cleanUrl
+}
+
+/**
+ * Apps Script Web App URL 마스킹 헬퍼 (배포 ID 앞 4글자, 뒤 4글자 노출)
+ * 예: https://script.google.com/macros/s/AKfy••••••••cdef/exec
+ */
+export function maskGasUrl(url) {
+  if (!url) return ''
+  const trimmed = String(url).trim()
+  const match = trimmed.match(/^(https?:\/\/script\.google\.com\/macros\/s\/)([a-zA-Z0-9_-]+)(\/exec.*)?$/i)
+  if (match) {
+    const prefix = match[1]
+    const id = match[2]
+    const suffix = match[3] || '/exec'
+    if (id.length <= 8) {
+      return `${prefix}••••••••${suffix}`
+    }
+    const head = id.slice(0, 4)
+    const tail = id.slice(-4)
+    return `${prefix}${head}••••••••${tail}${suffix}`
+  }
+  if (trimmed.length > 20) {
+    return trimmed.slice(0, 10) + '••••••••' + trimmed.slice(-6)
+  }
+  return trimmed
+}
+
 export const RURAL_SHEET_KEY = 'google_sheet_rural_id'
 
 /**
@@ -192,39 +270,112 @@ export async function hasRuralSheetConfigured() {
   return !!(sheetId && sheetId.trim().length > 0)
 }
 
+export const DEFAULT_KNOWN_TABS = [
+  '2027수시',
+  '2026수시',
+  '2025수시',
+  '2027모의결과',
+  '2027모의가채점',
+  '2027모의등급컷',
+  '2027수능최저',
+  '수능최저충족률',
+  '기본통계',
+  '진급명렬'
+]
+
+function getStoredTabs(cleanId) {
+  try {
+    const raw = localStorage.getItem(`pcm_actual_sheet_tabs_${cleanId}`)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch (_) {}
+  return null
+}
+
+function saveStoredTabs(cleanId, tabs) {
+  try {
+    if (Array.isArray(tabs) && tabs.length > 0) {
+      localStorage.setItem(`pcm_actual_sheet_tabs_${cleanId}`, JSON.stringify(tabs))
+    }
+  } catch (_) {}
+}
+
 let cachedActualTabs = null
 let cachedActualTabsTime = 0
 
 /**
+ * 타임아웃(기본 4초)이 적용된 fetch 헬퍼 (무한 로딩 및 네트워크 대기 방지)
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    return res
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * 구글 스프레드시트에 실제로 존재하는 시트 탭(Sheet Names) 목록 조회
- * (XLSX export 엔드포인트를 통해 실제 탭 목록을 정확히 파악하여,
- * 존재하지 않는 탭 요청 시 구글 GViz가 첫 번째 탭을 허수로 반환하는 문제를 방지)
+ * (XLSX export 엔드포인트를 통해 실제 탭 목록을 파악하여 허수 탭 접근 차단)
+ * - 로컬 캐시(localStorage / in-memory) 및 기본 알려진 탭으로 즉각 반환 (무한 대기 및 AbortError 방지)
+ * - forceReload 시에만 XLSX 엔드포인트를 적정 타임아웃(15초)과 bookSheets: true 초고속 모드로 조회하여 캐시 갱신
  */
 export async function getActualGoogleSheetTabs(sheetId, forceReload = false) {
   const cleanId = extractSheetId(sheetId)
-  if (!cleanId) return []
+  if (!cleanId) return [...DEFAULT_KNOWN_TABS]
 
   const now = Date.now()
+
+  // 1. 메모리 캐시 확인 (5분 이내 유효)
   if (!forceReload && cachedActualTabs && (now - cachedActualTabsTime < 300000)) {
     return cachedActualTabs
   }
 
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=xlsx&_t=${now}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const buffer = await res.arrayBuffer()
-    const wb = XLSX.read(buffer, { type: 'buffer' })
-    if (wb && Array.isArray(wb.SheetNames) && wb.SheetNames.length > 0) {
-      cachedActualTabs = wb.SheetNames
-      cachedActualTabsTime = now
-      return cachedActualTabs
-    }
-  } catch (err) {
-    console.warn('[statApi] Failed to fetch actual sheet tabs via xlsx:', err)
+  // 2. localStorage 영구 캐시 확인
+  const stored = getStoredTabs(cleanId)
+  if (!forceReload && stored && stored.length > 0) {
+    cachedActualTabs = stored
+    cachedActualTabsTime = now
+    return cachedActualTabs
   }
 
-  return cachedActualTabs || ['2027수시', '2026수시', '기본통계']
+  // 3. forceReload가 아닐 때는 컴포넌트 마운트 및 렌더링 블로킹을 차단하기 위해 즉시 반환
+  if (!forceReload) {
+    const fallback = stored || [...DEFAULT_KNOWN_TABS]
+    cachedActualTabs = fallback
+    cachedActualTabsTime = now
+    return fallback
+  }
+
+  // 4. forceReload 시 실제 구글 시트 XLSX export로 백그라운드 갱신 시도
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=xlsx&_t=${now}`
+    const res = await fetchWithTimeout(url, {}, 15000)
+    if (res.ok) {
+      const buffer = await res.arrayBuffer()
+      // bookSheets: true 옵션으로 셀 파싱을 건너뛰고 탭 이름만 수 ms 내 초고속 추출
+      const wb = XLSX.read(buffer, { type: 'buffer', bookSheets: true })
+      if (wb && Array.isArray(wb.SheetNames) && wb.SheetNames.length > 0) {
+        cachedActualTabs = wb.SheetNames
+        cachedActualTabsTime = now
+        saveStoredTabs(cleanId, wb.SheetNames)
+        return cachedActualTabs
+      }
+    }
+  } catch (err) {
+    console.warn('[statApi] Failed to fetch actual sheet tabs via xlsx (using cached/fallback):', err.message || err)
+  }
+
+  // 네트워크 실패 시 기존 캐시 또는 저장소 또는 기본 탭으로 안전하게 복구 (절대 빈 배열 반환으로 화면을 깨뜨리지 않음)
+  const safeFallback = cachedActualTabs || stored || [...DEFAULT_KNOWN_TABS]
+  cachedActualTabs = safeFallback
+  cachedActualTabsTime = now
+  return safeFallback
 }
 
 /**
@@ -232,10 +383,12 @@ export async function getActualGoogleSheetTabs(sheetId, forceReload = false) {
  */
 export async function fetchKcueSheetTabCsv(sheetId, tabName) {
   const cleanId = extractSheetId(sheetId)
-  if (!cleanId) throw new Error('구글 시트 ID가 지정되지 않았습니다.')
+  if (!cleanId) {
+    throw new Error('유효한 구글 시트 ID가 설정되지 않았습니다.')
+  }
   const url = `${buildSheetTabGvizUrl(cleanId, tabName)}&_t=${Date.now()}`
   
-  const res = await fetch(url)
+  const res = await fetchWithTimeout(url, {}, 6000)
   if (!res.ok) {
     throw new Error(`[${tabName}] 탭을 읽을 수 없습니다. (HTTP ${res.status}) 시트의 공유 권한 및 탭 이름을 확인하세요.`)
   }
@@ -248,7 +401,7 @@ export async function fetchKcueSheetTabCsv(sheetId, tabName) {
 export async function testKcueSheetTabConnection(sheetId, tabName) {
   try {
     // 1. 구글 시트에 실제 탭이 존재하는지 먼저 확인
-    const actualTabs = await getActualGoogleSheetTabs(sheetId, true)
+    const actualTabs = await getActualGoogleSheetTabs(sheetId, false)
     if (!actualTabs.includes(tabName)) {
       return { 
         success: false, 
@@ -262,7 +415,7 @@ export async function testKcueSheetTabConnection(sheetId, tabName) {
       return { success: false, message: '탭 데이터가 비어 있습니다.', rowCount: 0 }
     }
     // 간단한 행 수 계산
-    const lines = csv.trim().split(/\r?\n/)
+    const lines = csv.trim().split(/\r?\r\n/)
     if (lines.length <= 1) {
       return { success: true, message: '헤더만 존재하거나 데이터가 적습니다.', rowCount: lines.length - 1 }
     }
@@ -289,10 +442,10 @@ export function parseKcueRows(csvText, customPassword = null) {
   const password = customPassword || getStatSessionPassword()
   const rawHeaders = rows[0] || []
   
-  // 1. FA열(157번째, 0-index: 156), DA열(105번째, 0-index: 104), CA열(79번째, 0-index: 78) 또는 'encrypted_data' 헤더 열 확인
+  // 1. A열(0-index: 0), FA열(157번째, 0-index: 156), DA열(105번째, 0-index: 104), CA열(79번째, 0-index: 78) 또는 'encrypted_data' 헤더 열 확인
   let encColIdx = rawHeaders.findIndex(h => String(h || '').trim() === 'encrypted_data')
   if (encColIdx === -1) {
-    for (const cIdx of [156, 104, 78]) {
+    for (const cIdx of [0, 156, 104, 78]) {
       if (rawHeaders.length > cIdx && String(rows[1]?.[cIdx] || '').trim().startsWith('U2FsdGVkX1')) {
         encColIdx = cIdx
         break
@@ -327,6 +480,28 @@ export function parseKcueRows(csvText, customPassword = null) {
     const clean = String(h).replace(/[\r\n\s]+/g, '').trim()
     colMap[clean] = idx
   })
+
+  // 3. CE:DR 매칭 열(2027: CM=90, 2026: CW=100, 2025: DC=106) 동적 인덱스 탐색
+  const findMatchingColIdx = (yr, typePattern, fallbackIdx) => {
+    const yrShort = yr.slice(2)
+    const idx = rawHeaders.findIndex(h => {
+      const s = String(h || '').replace(/[\r\n\s]+/g, '')
+      return (s.includes(yr) || s.includes(yrShort)) && typePattern.test(s)
+    })
+    return idx !== -1 ? idx : fallbackIdx
+  }
+
+  const col2027Rate = findMatchingColIdx('2027', /경쟁/, 90)
+  const col2027Quota = findMatchingColIdx('2027', /모집|정원/, 86)
+  const col2027App = findMatchingColIdx('2027', /지원|접수/, 88)
+
+  const col2026Rate = findMatchingColIdx('2026', /경쟁/, 100)
+  const col2026Quota = findMatchingColIdx('2026', /모집|정원/, 98)
+  const col2026App = findMatchingColIdx('2026', /지원|접수/, 99)
+
+  const col2025Rate = findMatchingColIdx('2025', /경쟁/, 106)
+  const col2025Quota = findMatchingColIdx('2025', /모집|정원/, 104)
+  const col2025App = findMatchingColIdx('2025', /지원|접수/, 105)
 
   const result = []
 
@@ -416,28 +591,55 @@ export function parseKcueRows(csvText, customPassword = null) {
     const isGraduate = String(classNum).includes('졸업') || grade !== 3
     const studentKey = `${classNum}-${studentNum}_${name}`
 
-    // 경쟁률 수치 파싱 헬퍼 (예: "15.4", "15.4:1", "15.4 : 1" 등 지원)
+    // 경쟁률 수치 파싱 헬퍼 (CM: 숫자 "8.5", CW/DC: "5.25 : 1" 등 모든 형태 지원)
     const parseRateVal = (val) => {
       if (val === null || val === undefined || val === '') return null
+      if (typeof val === 'number') {
+        return isNaN(val) ? null : parseFloat(val.toFixed(2))
+      }
       const str = String(val).trim()
-      if (str === '자료없음' || str === '-' || str === '미매칭' || str === 'N/A') return null
+      if (str === '자료없음' || str === '-' || str === '미매칭' || str === 'N/A' || str === '') return null
+      // "5.25 : 1" 또는 "5.25:1" 또는 순수 숫자 "8.5"
       const match = str.match(/([0-9]+(?:\.[0-9]+)?)/)
       if (match) {
         const n = parseFloat(match[1])
-        return isNaN(n) ? null : n
+        return isNaN(n) ? null : parseFloat(n.toFixed(2))
       }
       return null
     }
 
-    // 물리적 열 인덱스 또는 헤더명으로 값 추출 (CI, CK, CM 등)
+    // 물리적 열 인덱스(CE:DR 구간 CM=90, CW=100, DC=106) 또는 헤더명으로 값 추출
     const getColOrKeyVal = (colIdx, ...keys) => {
-      // 1) rowData 또는 헤더명 매핑 우선
+      // 1) keys로 getVal 시도 (rowData 또는 colMap)
       const namedVal = getVal(...keys)
       if (namedVal !== '' && namedVal !== null && namedVal !== undefined) return namedVal
-      // 2) 행 배열의 물리적 열 인덱스
+
+      // 2) rawHeaders의 해당 인덱스 헤더명으로 rowData 조회
+      const headerNameAtCol = rawHeaders && rawHeaders[colIdx] ? rawHeaders[colIdx] : null
+      if (headerNameAtCol && rowData) {
+        if (rowData[headerNameAtCol] !== undefined && rowData[headerNameAtCol] !== null && rowData[headerNameAtCol] !== '') {
+          return rowData[headerNameAtCol]
+        }
+        const cleanH = String(headerNameAtCol).replace(/[\r\n\s]+/g, '')
+        for (const k of Object.keys(rowData)) {
+          if (k.replace(/[\r\n\s]+/g, '') === cleanH) {
+            const v = rowData[k]
+            if (v !== undefined && v !== null && v !== '') return v
+          }
+        }
+      }
+
+      // 3) rowData의 인덱스 키 조회 (객체가 인덱스 번호로 매핑된 경우)
+      if (rowData) {
+        if (rowData[colIdx] !== undefined && rowData[colIdx] !== null && rowData[colIdx] !== '') return rowData[colIdx]
+        if (rowData[String(colIdx)] !== undefined && rowData[String(colIdx)] !== null && rowData[String(colIdx)] !== '') return rowData[String(colIdx)]
+      }
+
+      // 4) 원본 행 배열 r의 물리적 열 인덱스 (가장 확실함)
       if (r && r[colIdx] !== undefined && r[colIdx] !== null && r[colIdx] !== '') {
         return r[colIdx]
       }
+
       return ''
     }
 
@@ -448,29 +650,30 @@ export function parseKcueRows(csvText, customPassword = null) {
       const q = parseFloat(String(quotaVal || '').replace(/[^0-9.]/g, ''))
       const a = parseFloat(String(appVal || '').replace(/[^0-9.]/g, ''))
       if (q > 0 && a >= 0) {
-        return parseFloat((a / q).toFixed(1))
+        return parseFloat((a / q).toFixed(2))
       }
       return null
     }
 
-    // 2027: CI=86 (모집), CK=88 (지원), CM=90 (경쟁률 수치) / 89 (경쟁률 표시용)
-    // 2026: CU=98 (모집), CV=99 (지원), CW=100 (경쟁률)
-    // 2025: DA=104 (모집), DB=105 (지원), DC=106 (경쟁률)
-    // 2024: DG=110 (모집), DH=111 (지원), DI=112 (경쟁률)
-    const rawRate2027 = getColOrKeyVal(90, '[2027_매칭]경쟁률(수치)', '[2027_매칭]경쟁률(표시용)', '[2027_매칭]경쟁률', '2027경쟁률', '27경쟁률', '경쟁률(2027)', '경쟁률') || getColOrKeyVal(89, '[2027_매칭]경쟁률(표시용)')
-    const rawRate2026 = getColOrKeyVal(100, '[2026_매칭]경쟁률(수치)', '[2026_매칭]경쟁률(표시용)', '[2026_매칭]경쟁률', '2026경쟁률', '26경쟁률', '경쟁률(2026)')
-    const rawRate2025 = getColOrKeyVal(106, '[2025_매칭]경쟁률(수치)', '[2025_매칭]경쟁률(표시용)', '[2025_매칭]경쟁률', '2025경쟁률', '25경쟁률', '경쟁률(2025)')
-    const rawRate2024 = getColOrKeyVal(112, '[2024_매칭]경쟁률(수치)', '[2024_매칭]경쟁률(표시용)', '[2024_매칭]경쟁률', '2024경쟁률', '24경쟁률', '경쟁률(2024)')
-    const rawRate2023 = getColOrKeyVal(118, '[2023_매칭]경쟁률(수치)', '[2023_매칭]경쟁률(표시용)', '[2023_매칭]경쟁률', '2023경쟁률', '23경쟁률', '경쟁률(2023)')
+    // [CE:DR 매칭 열 기준]
+    // 2027: CI=86 (모집), CK=88 (지원), CM=90 (2027경쟁률 - 숫자만 존재)
+    // 2026: CU=98 (모집), CV=99 (지원), CW=100 (2026경쟁률 - '5.25 : 1' 형식)
+    // 2025: DA=104 (모집), DB=105 (지원), DC=106 (2025경쟁률 - '5.25 : 1' 형식)
+    // 2024: DG=110 (모집), DH=111 (지원), DI=112 (2024경쟁률)
+    const rawRate2027 = getColOrKeyVal(col2027Rate, '[2027_매칭]경쟁률(수치)', '[2027_매칭]경쟁률(표시용)', '[2027_매칭]경쟁률', '2027경쟁률', '27경쟁률', '경쟁률(2027)', '2027_경쟁률', '2027 수시 경쟁률') || getColOrKeyVal(89, '[2027_매칭]경쟁률(표시용)')
+    const rawRate2026 = getColOrKeyVal(col2026Rate, '[2026_매칭]경쟁률(수치)', '[2026_매칭]경쟁률(표시용)', '[2026_매칭]경쟁률', '2026경쟁률', '26경쟁률', '경쟁률(2026)', '2026_경쟁률')
+    const rawRate2025 = getColOrKeyVal(col2025Rate, '[2025_매칭]경쟁률(수치)', '[2025_매칭]경쟁률(표시용)', '[2025_매칭]경쟁률', '2025경쟁률', '25경쟁률', '경쟁률(2025)', '2025_경쟁률')
+    const rawRate2024 = getColOrKeyVal(112, '[2024_매칭]경쟁률(수치)', '[2024_매칭]경쟁률(표시용)', '[2024_매칭]경쟁률', '2024경쟁률', '24경쟁률', '경쟁률(2024)', '2024_경쟁률')
+    const rawRate2023 = getColOrKeyVal(118, '[2023_매칭]경쟁률(수치)', '[2023_매칭]경쟁률(표시용)', '[2023_매칭]경쟁률', '2023경쟁률', '23경쟁률', '경쟁률(2023)', '2023_경쟁률')
 
-    const quota2027 = getColOrKeyVal(86, '[2027_매칭]모집인원(표시용)', '[2027_매칭]모집인원(합산용)', '[2027_매칭]모집인원', '2027모집인원', '27모집인원', '모집인원(2027)')
-    const app2027 = getColOrKeyVal(88, '[2027_매칭]지원인원', '2027지원인원', '27지원인원', '지원인원(2027)')
+    const quota2027 = getColOrKeyVal(col2027Quota, '[2027_매칭]모집인원(표시용)', '[2027_매칭]모집인원(합산용)', '[2027_매칭]모집인원', '2027모집인원', '27모집인원', '모집인원(2027)')
+    const app2027 = getColOrKeyVal(col2027App, '[2027_매칭]지원인원', '2027지원인원', '27지원인원', '지원인원(2027)')
 
-    const quota2026 = getColOrKeyVal(98, '[2026_매칭]모집인원(표시용)', '[2026_매칭]모집인원', '2026모집인원', '26모집인원', '모집인원(2026)')
-    const app2026 = getColOrKeyVal(99, '[2026_매칭]지원인원', '2026지원인원', '26지원인원', '지원인원(2026)')
+    const quota2026 = getColOrKeyVal(col2026Quota, '[2026_매칭]모집인원(표시용)', '[2026_매칭]모집인원', '2026모집인원', '26모집인원', '모집인원(2026)')
+    const app2026 = getColOrKeyVal(col2026App, '[2026_매칭]지원인원', '2026지원인원', '26지원인원', '지원인원(2026)')
 
-    const quota2025 = getColOrKeyVal(104, '[2025_매칭]모집인원(표시용)', '[2025_매칭]모집인원', '2025모집인원', '25모집인원', '모집인원(2025)')
-    const app2025 = getColOrKeyVal(105, '[2025_매칭]지원인원', '2025지원인원', '25지원인원', '지원인원(2025)')
+    const quota2025 = getColOrKeyVal(col2025Quota, '[2025_매칭]모집인원(표시용)', '[2025_매칭]모집인원', '2025모집인원', '25모집인원', '모집인원(2025)')
+    const app2025 = getColOrKeyVal(col2025App, '[2025_매칭]지원인원', '2025지원인원', '25지원인원', '지원인원(2025)')
 
     const quota2024 = getColOrKeyVal(110, '[2024_매칭]모집인원(표시용)', '[2024_매칭]모집인원', '2024모집인원', '24모집인원', '모집인원(2024)')
     const app2024 = getColOrKeyVal(111, '[2024_매칭]지원인원', '2024지원인원', '24지원인원', '지원인원(2024)')
@@ -478,36 +681,49 @@ export function parseKcueRows(csvText, customPassword = null) {
     const quota2023 = getColOrKeyVal(116, '[2023_매칭]모집인원(표시용)', '[2023_매칭]모집인원', '2023모집인원', '23모집인원', '모집인원(2023)')
     const app2023 = getColOrKeyVal(117, '[2023_매칭]지원인원', '2023지원인원', '23지원인원', '지원인원(2023)')
 
+    const formatRawRate = (val, rate) => {
+      if (val !== null && val !== undefined && val !== '') {
+        const s = String(val).trim()
+        if (s.includes(':')) return s.replace(/\s+/g, '')
+        return `${s}:1`
+      }
+      return rate !== null ? `${rate}:1` : ''
+    }
+
+    const r2025 = calcRate(rawRate2025, quota2025, app2025)
+    const r2026 = calcRate(rawRate2026, quota2026, app2026)
+    const r2027 = calcRate(rawRate2027, quota2027, app2027)
+
     const competitionRates = {
       '2023': {
         quota: quota2023,
         applicants: app2023,
         rate: calcRate(rawRate2023, quota2023, app2023),
-        raw: String(rawRate2023 || '').trim()
+        raw: formatRawRate(rawRate2023, calcRate(rawRate2023, quota2023, app2023))
       },
       '2024': {
         quota: quota2024,
         applicants: app2024,
         rate: calcRate(rawRate2024, quota2024, app2024),
-        raw: String(rawRate2024 || '').trim()
+        raw: formatRawRate(rawRate2024, calcRate(rawRate2024, quota2024, app2024))
       },
       '2025': {
         quota: quota2025,
         applicants: app2025,
-        rate: calcRate(rawRate2025, quota2025, app2025),
-        raw: String(rawRate2025 || '').trim()
+        rate: r2025,
+        raw: formatRawRate(rawRate2025, r2025)
       },
       '2026': {
         quota: quota2026,
         applicants: app2026,
-        rate: calcRate(rawRate2026, quota2026, app2026),
-        raw: String(rawRate2026 || '').trim()
+        rate: r2026,
+        raw: formatRawRate(rawRate2026, r2026)
       },
       '2027': {
         quota: quota2027,
         applicants: app2027,
-        rate: calcRate(rawRate2027, quota2027, app2027),
-        raw: String(rawRate2027 || '').trim()
+        rate: r2027,
+        raw: formatRawRate(rawRate2027, r2027)
       }
     }
 
@@ -557,7 +773,17 @@ export function parseKcueRows(csvText, customPassword = null) {
       isRural,
       isOpportunity,
       isMetro,
-      competitionRates
+      competitionRates,
+      csatKorSubject: String(getVal('국어(과목)', '국어 (과목)')).trim(),
+      csatKorGrade: getNum('국어(등급)', '국어 (등급)'),
+      csatMathSubject: String(getVal('수학(과목)', '수학 (과목)')).trim(),
+      csatMathGrade: getNum('수학(등급)', '수학 (등급)'),
+      csatEngGrade: getNum('영어(등급)', '영어 (등급)', '수능영어', '수능 영어'),
+      csatInq1Subject: String(getVal('탐구1(과목)', '탐구1 (과목)')).trim(),
+      csatInq1Grade: getNum('탐구1(등급)', '탐구1 (등급)'),
+      csatInq2Subject: String(getVal('탐구2(과목)', '탐구2 (과목)')).trim(),
+      csatInq2Grade: getNum('탐구2(등급)', '탐구2 (등급)'),
+      rawRow: rowData || {}
     })
   }
 
@@ -574,15 +800,20 @@ export function parseKcueRows(csvText, customPassword = null) {
 export async function fetchAndParseKcueYearData(sheetId, year, type = '수시', customPassword = null) {
   const tabName = getKcueTabName(year, type)
   
-  // 실제 구글 스프레드시트에 존재하는 탭인지 엄격하게 검증!
+  // 실제 구글 스프레드시트에 존재하는 탭 목록 확인 (XLSX 목록이 확보된 경우에만 필터링)
   const actualTabs = await getActualGoogleSheetTabs(sheetId)
-  if (!actualTabs.includes(tabName)) {
+  if (actualTabs && actualTabs.length > 0 && !actualTabs.includes(tabName)) {
     console.log(`[statApi] 구글 시트에 '${tabName}' 탭이 아직 등록되지 않았습니다. 빈 데이터를 반환합니다.`)
     return []
   }
 
-  const csv = await fetchKcueSheetTabCsv(sheetId, tabName)
-  return parseKcueRows(csv, customPassword)
+  try {
+    const csv = await fetchKcueSheetTabCsv(sheetId, tabName)
+    return parseKcueRows(csv, customPassword)
+  } catch (err) {
+    console.warn(`[statApi] '${tabName}' 탭 로드 실패:`, err)
+    return []
+  }
 }
 
 /**
@@ -592,23 +823,44 @@ export async function fetchAndParseKcueYearData(sheetId, year, type = '수시', 
  * @returns {Promise<{ success: boolean, isEncrypted: boolean, message?: string }>}
  */
 const STAT_SAMPLE_CIPHER_KEY = 'pcm_stat_sample_cipher'
+const STAT_NOT_ENCRYPTED_FLAG = '__NOT_ENCRYPTED__'
 let memorySampleCipher = ''
 
 /**
- * 구글 시트의 DA열 암호문 샘플 1개를 초고속으로 획득 (캐시 우선 & gviz limit 3 초경량 쿼리)
+ * 구글 시트의 암호문 샘플 1개를 초고속으로 획득 (캐시 우선 & gviz limit 3 초경량 쿼리)
+ * - 암호화된 시트: 암호문 샘플 문자열(U2FsdGVkX1...) 반환
+ * - 암호화되지 않은 시트: 빈 문자열('') 반환
  */
 export async function getStatSampleCipher(sheetId, forceReload = false) {
-  if (!forceReload) {
-    if (memorySampleCipher) return memorySampleCipher
-    const sess = sessionStorage.getItem(STAT_SAMPLE_CIPHER_KEY) || localStorage.getItem(STAT_SAMPLE_CIPHER_KEY)
-    if (sess) {
-      memorySampleCipher = sess
-      return sess
-    }
-  }
-
   const cleanId = extractSheetId(sheetId) || DEFAULT_KCUE_SHEET_ID
   if (!cleanId) return ''
+
+  if (!forceReload) {
+    if (memorySampleCipher) {
+      return memorySampleCipher === STAT_NOT_ENCRYPTED_FLAG ? '' : memorySampleCipher
+    }
+    const sess = sessionStorage.getItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`) || 
+                 localStorage.getItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`) ||
+                 sessionStorage.getItem(STAT_SAMPLE_CIPHER_KEY) || 
+                 localStorage.getItem(STAT_SAMPLE_CIPHER_KEY)
+    if (sess) {
+      if (sess === STAT_NOT_ENCRYPTED_FLAG) {
+        memorySampleCipher = STAT_NOT_ENCRYPTED_FLAG
+        return ''
+      }
+      if (typeof sess === 'string' && sess.startsWith('U2FsdGVkX1')) {
+        memorySampleCipher = sess
+        return sess
+      }
+      // 손상되거나 비정상적인 캐시([object Object] 등)는 자동 제거
+      try {
+        sessionStorage.removeItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`)
+        localStorage.removeItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`)
+        sessionStorage.removeItem(STAT_SAMPLE_CIPHER_KEY)
+        localStorage.removeItem(STAT_SAMPLE_CIPHER_KEY)
+      } catch (_) {}
+    }
+  }
 
   // 초고속 GViz 쿼리 (단 3개 행만 요청: 5KB 미만, 0.2~0.5초 완료)
   const candidateTabs = ['2027수시', '2026수시', '']
@@ -630,30 +882,70 @@ export async function getStatSampleCipher(sheetId, forceReload = false) {
       const rawHeaders = rows[0] || []
       let encColIdx = rawHeaders.findIndex(h => String(h || '').trim() === 'encrypted_data')
       if (encColIdx === -1) {
-        if (rawHeaders.length >= 157) {
-          encColIdx = 156
-        } else if (rawHeaders.length >= 105) {
-          encColIdx = 104
+        for (const cIdx of [0, 156, 104, 78]) {
+          if (rawHeaders.length > cIdx && String(rows[1]?.[cIdx] || '').trim().startsWith('U2FsdGVkX1')) {
+            encColIdx = cIdx
+            break
+          }
+        }
+        if (encColIdx === -1) {
+          if (rawHeaders.length >= 157) {
+            encColIdx = 156
+          } else if (rawHeaders.length >= 105) {
+            encColIdx = 104
+          }
         }
       }
 
+      let foundCipher = ''
       if (encColIdx !== -1) {
         for (let i = 1; i < rows.length; i++) {
           const val = String(rows[i]?.[encColIdx] || '').trim()
           if (val.startsWith('U2FsdGVkX1')) {
-            memorySampleCipher = val
-            sessionStorage.setItem(STAT_SAMPLE_CIPHER_KEY, val)
-            localStorage.setItem(STAT_SAMPLE_CIPHER_KEY, val)
-            return val
+            foundCipher = val
+            break
           }
         }
+      }
+
+      // 지정 열에 없을 경우 데이터 행 전체 열 fallback 탐색
+      if (!foundCipher) {
+        for (let i = 1; i < rows.length; i++) {
+          const r = rows[i] || []
+          for (let c = 0; c < r.length; c++) {
+            const val = String(r[c] || '').trim()
+            if (val.startsWith('U2FsdGVkX1')) {
+              foundCipher = val
+              break
+            }
+          }
+          if (foundCipher) break
+        }
+      }
+
+      if (foundCipher) {
+        memorySampleCipher = foundCipher
+        try {
+          sessionStorage.setItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`, foundCipher)
+          localStorage.setItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`, foundCipher)
+          sessionStorage.setItem(STAT_SAMPLE_CIPHER_KEY, foundCipher)
+          localStorage.setItem(STAT_SAMPLE_CIPHER_KEY, foundCipher)
+        } catch (_) {}
+        return foundCipher
       }
     } catch (e) {
       // 다음 후보 탭 시도
     }
   }
 
-  return memorySampleCipher || ''
+  // 암호화된 셀이 전혀 없는 시트인 경우 플래그 저장 후 빈 문자열 반환
+  memorySampleCipher = STAT_NOT_ENCRYPTED_FLAG
+  try {
+    sessionStorage.setItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`, STAT_NOT_ENCRYPTED_FLAG)
+    localStorage.setItem(`${STAT_SAMPLE_CIPHER_KEY}_${cleanId}`, STAT_NOT_ENCRYPTED_FLAG)
+  } catch (_) {}
+
+  return ''
 }
 
 /**
@@ -677,13 +969,13 @@ export async function verifyStatSheetPassword(sheetId, password) {
     // 캐시 우선으로 0ms 만에 암호문 샘플 획득
     const sampleCipher = await getStatSampleCipher(cleanId)
 
-    // 시트에 암호화된 내용이 전혀 없는 경우 (기존 일반 시트)
-    if (!sampleCipher) {
+    // 시트에 암호화된 내용이 전혀 없는 경우 (기존 일반 평문 시트)
+    if (!sampleCipher || typeof sampleCipher !== 'string' || !sampleCipher.trim() || !sampleCipher.startsWith('U2FsdGVkX1')) {
       return { success: true, isEncrypted: false, message: '암호화되지 않은 시트입니다.' }
     }
 
     // 암호문이 있는 경우: 비밀번호 검증
-    if (!password) {
+    if (!password || !password.trim()) {
       return { success: false, isEncrypted: true, message: '비밀번호를 입력해야 합니다.' }
     }
 
@@ -795,16 +1087,143 @@ export async function saveKcueYearSheets(sheetsMap) {
  * 배포 구글 시트의 '2027가채점' 탭(CA열 암호화 데이터)을 비동기 조회하여
  * 모의고사 응시 배열로 파싱 및 복호화
  */
-export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, customPassword = null) {
+
+/**
+ * 모의고사 레코드에 실제 성적(원점수, 표준점수, 백분위, 등급 중 하나라도)이 존재하는지 판별하는 헬퍼
+ * @param {Object} r 모의고사 레코드 객체
+ * @returns {boolean}
+ */
+export function hasAnyMockScore(r) {
+  if (!r) return false
+  const isValid = (v) => v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '-'
+  return (
+    isValid(r.korGrade) || isValid(r.korRawScore) || isValid(r.korStandardScore) || isValid(r.korPercentile) ||
+    isValid(r.mathGrade) || isValid(r.mathRawScore) || isValid(r.mathStandardScore) || isValid(r.mathPercentile) ||
+    isValid(r.engGrade) || isValid(r.engRawScore) || isValid(r.engStandardScore) || isValid(r.engPercentile) ||
+    isValid(r.inq1Grade) || isValid(r.inq1RawScore) || isValid(r.inq1StandardScore) || isValid(r.inq1Percentile) ||
+    isValid(r.inq2Grade) || isValid(r.inq2RawScore) || isValid(r.inq2StandardScore) || isValid(r.inq2Percentile) ||
+    isValid(r.histGrade) || isValid(r.histRawScore) || isValid(r.histStandardScore) || isValid(r.histPercentile) ||
+    isValid(r.secondLangGrade) || isValid(r.secondLangRawScore) || isValid(r.secondLangStandardScore) || isValid(r.secondLangPercentile)
+  )
+}
+
+/**
+ * 모의고사 결과(확정)와 가채점 데이터 스마트 병합
+ * 규칙:
+ * 1. 결과 시트에 해당 월(회차) 데이터가 있으면, 그 월은 가채점을 따르지 않고 결과 시트를 우선 근거로 분석.
+ * 2. 단, 해당 월 모의고사에서 가채점에는 있는데 결과 시트에는 누락된 학생이 있다면,
+ *    그 학생만 가채점 결과를 유지(Fallback).
+ * 3. 결과 시트에 없는 월(회차)은 가채점 데이터를 사용하되 실제 성적이 있는 실응시자만 채택(결시 행 제외).
+ */
+export function smartMergeMockExamRecords(resultRecords = [], tentativeRecords = []) {
+  const validResultRecords = (resultRecords || []).filter(hasAnyMockScore)
+  const validTentativeRecords = (tentativeRecords || []).filter(hasAnyMockScore)
+
+  if (!validResultRecords || validResultRecords.length === 0) return validTentativeRecords || []
+  if (!validTentativeRecords || validTentativeRecords.length === 0) return validResultRecords || []
+
+  // 1. 결과 시트에 존재하는 월(회차) 집합 (예: '6월', '10월' 등)
+  const resultExamMonths = new Set()
+  validResultRecords.forEach(r => {
+    const m = String(r.examName || '').match(/([0-9]{1,2})\s*월/)
+    if (m) {
+      resultExamMonths.add(m[1])
+    } else if (r.examName) {
+      resultExamMonths.add(r.examName)
+    }
+  })
+
+  // 2. 결과 시트에 존재하는 (월_학생키) 집합
+  const resultSet = new Set()
+  validResultRecords.forEach(r => {
+    const m = String(r.examName || '').match(/([0-9]{1,2})\s*월/)
+    const monthKey = m ? m[1] : r.examName
+    resultSet.add(`${monthKey}_${r.studentKey}`)
+  })
+
+  // 3. 가채점 데이터에서 보완할 레코드 추출 (실응시자만)
+  const fallbackRecords = []
+  validTentativeRecords.forEach(tr => {
+    const m = String(tr.examName || '').match(/([0-9]{1,2})\s*월/)
+    const monthKey = m ? m[1] : tr.examName
+    const hasMonthInResult = resultExamMonths.has(monthKey)
+
+    if (!hasMonthInResult) {
+      // 결과 시트에 전혀 없는 회차(월)는 가채점에서 실응시자 채택
+      fallbackRecords.push(tr)
+    } else {
+      // 결과 시트가 이미 있는 회차이지만, 가채점에 실제 성적이 존재하는 누락 학생만 fallback
+      const studentMonthKey = `${monthKey}_${tr.studentKey}`
+      if (!resultSet.has(studentMonthKey)) {
+        fallbackRecords.push({ ...tr, isFallbackFromTentative: true })
+      }
+    }
+  })
+
+  return [...validResultRecords, ...fallbackRecords]
+}
+
+
+const mockDataMemoryCache = new Map()
+
+export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, customPassword = null, forceReload = false, targetYear = null) {
   const cleanId = sheetId ? extractSheetId(sheetId) : await getKcueSheetId()
   if (!cleanId) throw new Error('구글 시트 ID가 설정되지 않았습니다.')
 
-  // 1. 실제 구글 시트에 존재하는 탭 자동 탐색 (2027모의가채점, 2027가채점, 모의가채점 등)
-  let targetTab = tabName
-  if (!targetTab) {
-    const actualTabs = await getActualGoogleSheetTabs(cleanId)
-    targetTab = actualTabs.find(t => t.includes('모의') || t.includes('가채점')) || '2027모의가채점'
+  const yearTag = targetYear ? String(targetYear) : 'all'
+  const cacheKey = `${cleanId}_${tabName || yearTag}`
+  if (!forceReload && mockDataMemoryCache.has(cacheKey)) {
+    return mockDataMemoryCache.get(cacheKey)
   }
+
+  // 만약 특정 탭이 지정된 경우 해당 탭만 단독 파싱
+  if (tabName) {
+    return await parseSingleMockTab(cleanId, tabName, customPassword)
+  }
+
+  const actualTabs = await getActualGoogleSheetTabs(cleanId)
+
+  // 학년도가 지정된 경우 해당 연도 모의 탭 탐색, 미지정 시 전체 중 탐색
+  const yr = targetYear ? String(targetYear) : ''
+  const isMatchYear = (t) => !yr || t.includes(yr)
+
+  // 1. 결과 탭(확정) 탐색: 예) '2027모의결과', '모의결과'
+  const resultTab = actualTabs.find(t => isMatchYear(t) && (t.includes('모의결과') || (t.includes('모의') && t.includes('결과'))))
+  // 2. 가채점 탭 탐색: 예) '2027모의가채점', '2027가채점', '모의가채점'
+  const tentativeTab = actualTabs.find(t => isMatchYear(t) && (t.includes('가채점') || (t.includes('모의') && !t.includes('결과'))))
+
+  let resultRecords = []
+  if (resultTab) {
+    try {
+      resultRecords = await parseSingleMockTab(cleanId, resultTab, customPassword)
+    } catch (e) {
+      console.warn(`[statApi] ${resultTab} 로드 실패:`, e)
+    }
+  }
+
+  let tentativeRecords = []
+  if (tentativeTab) {
+    try {
+      tentativeRecords = await parseSingleMockTab(cleanId, tentativeTab, customPassword)
+    } catch (e) {
+      console.warn(`[statApi] ${tentativeTab} 로드 실패:`, e)
+    }
+  }
+
+  if (resultRecords.length > 0 && tentativeRecords.length > 0) {
+    const merged = smartMergeMockExamRecords(resultRecords, tentativeRecords)
+    mockDataMemoryCache.set(cacheKey, merged)
+    return merged
+  }
+
+  const finalRecords = resultRecords.length > 0 ? resultRecords : tentativeRecords
+  mockDataMemoryCache.set(cacheKey, finalRecords)
+  return finalRecords
+}
+
+async function parseSingleMockTab(cleanId, targetTab, customPassword = null) {
+  if (!cleanId) throw new Error('구글 시트 ID가 설정되지 않았습니다.')
+  if (!targetTab) return []
 
   const password = customPassword || getStatSessionPassword()
   const csvText = await fetchKcueSheetTabCsv(cleanId, targetTab)
@@ -819,10 +1238,10 @@ export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, 
 
   const rawHeaders = rows[0] || []
   
-  // CA열(79번째, 0-index: 78), encrypted_data 열 또는 U2FsdGVkX1 암호문 열 탐색
+  // A열(0-index: 0), CA열(79번째, 0-index: 78), encrypted_data 열 또는 U2FsdGVkX1 암호문 열 탐색
   let encColIdx = rawHeaders.findIndex(h => String(h || '').trim() === 'encrypted_data')
   if (encColIdx === -1) {
-    for (const cIdx of [78, 156, 104]) {
+    for (const cIdx of [0, 78, 156, 104]) {
       if (rawHeaders.length > cIdx && String(rows[1]?.[cIdx] || '').trim().startsWith('U2FsdGVkX1')) {
         encColIdx = cIdx
         break
@@ -847,6 +1266,13 @@ export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, 
     colMap[clean] = idx
   })
 
+  // 44개 컬럼 표준 규격(A~AR열, 2027모의결과 등) 감지:
+  // targetTab이 '모의결과'를 포함하거나, 열 수가 40열 이상이고 '월', '이름'이 있는 경우
+  const isStandard44 = !isEncrypted && (
+    targetTab.includes('모의결과') ||
+    (rawHeaders.length >= 40 && (colMap['월'] !== undefined || colMap['월'] === 0) && colMap['이름'] !== undefined)
+  )
+
   const records = []
 
   for (let i = 1; i < rows.length; i++) {
@@ -865,37 +1291,47 @@ export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, 
       }
     }
 
-    const getVal = (...keys) => {
-      if (rowData) {
-        for (const k of keys) {
-          if (rowData[k] !== undefined && rowData[k] !== null && rowData[k] !== '') {
-            return String(rowData[k]).trim()
-          }
-          const cleanK = k.replace(/[\r\n\s]+/g, '')
-          for (const ak of Object.keys(rowData)) {
-            if (ak.replace(/[\r\n\s]+/g, '') === cleanK && rowData[ak] !== undefined && rowData[ak] !== null && rowData[ak] !== '') {
-              return String(rowData[ak]).trim()
-            }
-          }
-        }
-        return ''
-      } else {
-        for (const k of keys) {
-          const cleanK = k.replace(/[\r\n\s]+/g, '')
-          if (colMap[cleanK] !== undefined && r[colMap[cleanK]] !== undefined && r[colMap[cleanK]] !== null && r[colMap[cleanK]] !== '') {
-            return String(r[colMap[cleanK]]).trim()
-          }
-        }
-        return ''
-      }
-    }
-
-    const getNum = (...keys) => {
-      const v = getVal(...keys)
-      if (v === '' || v === null || v === undefined) return null
-      const n = Number(v)
-      return isNaN(n) ? null : n
-    }
+    let name = ''
+    let classNum = ''
+    let studentNum = ''
+    let grade = 3
+    let monthOrder = null
+    let examName = ''
+    let rawMonth = ''
+    let seriesNum = 1
+    let korSubject = ''
+    let korRawScore = ''
+    let korStandardScore = ''
+    let korPercentile = ''
+    let korGrade = null
+    let mathSubject = ''
+    let mathRawScore = ''
+    let mathStandardScore = ''
+    let mathPercentile = ''
+    let mathGrade = null
+    let engRawScore = ''
+    let engStandardScore = ''
+    let engPercentile = ''
+    let engGrade = null
+    let inquiry1 = ''
+    let inq1RawScore = ''
+    let inq1StandardScore = ''
+    let inq1Percentile = ''
+    let inq1Grade = null
+    let inquiry2 = ''
+    let inq2RawScore = ''
+    let inq2StandardScore = ''
+    let inq2Percentile = ''
+    let inq2Grade = null
+    let histRawScore = ''
+    let histStandardScore = ''
+    let histPercentile = ''
+    let histGrade = null
+    let secondLangSubject = ''
+    let secondLangRawScore = ''
+    let secondLangStandardScore = ''
+    let secondLangPercentile = ''
+    let secondLangGrade = null
 
     // 등급 파싱 함수 (1~9 등급 검증 및 원점수/표준점수 등급 자동 환산)
     const parseGradeValue = (val, subjectType = 'NORMAL') => {
@@ -1014,147 +1450,299 @@ export async function fetchAndParseKcueMockData(sheetId = null, tabName = null, 
       return null
     }
 
-    const getGradeNum = (keys, subjectType = 'NORMAL') => {
-      // 1) 명시된 키 리스트 우선 탐색
-      for (const k of keys) {
-        const v = getVal(k)
-        const parsed = parseGradeValue(v, subjectType)
-        if (parsed !== null) return parsed
+    if (isStandard44) {
+      // 44개 컬럼 표준 규격 직접 인덱싱 파싱 (2027모의결과 탭 등)
+      name = String(r[5] || '').trim()
+      if (!name || name === '이름' || name === '성명') continue
+
+      seriesNum = r[1] != null && r[1] !== '' ? Number(r[1]) : 1
+      if (isNaN(seriesNum)) seriesNum = 1
+
+      classNum = r[3] != null ? String(r[3]).trim() : ''
+      studentNum = r[4] != null ? String(r[4]).trim() : ''
+      grade = Number(r[2]) || 3
+
+      rawMonth = r[0] != null ? String(r[0]).trim() : ''
+      const mNum = parseInt(rawMonth.replace(/[^0-9]/g, ''), 10)
+      if (!isNaN(mNum) && mNum >= 3 && mNum <= 11) {
+        monthOrder = mNum
+        const isMopyeong = [6, 9].includes(mNum)
+        examName = `${mNum}월 ${isMopyeong ? '모평' : '학평'}`
+      } else {
+        examName = rawMonth || targetTab
       }
 
-      // 2) rowData 또는 colMap 키 패턴 fallback 탐색
-      let pattern = null
-      if (subjectType === 'KOR') pattern = /(?:^|[^가-힣])(?:국어|언어|국)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
-      else if (subjectType === 'MATH') pattern = /(?:^|[^가-힣])(?:수학|수리|수)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
-      else if (subjectType === 'ENG') pattern = /(?:^|[^가-힣])(?:영어|외국어|영)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
-      else if (subjectType === 'HIST') pattern = /(?:^|[^가-힣])(?:한국사|국사|한)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
+      korSubject = r[6] != null ? String(r[6]).trim() : ''
+      korRawScore = r[9] != null && r[9] !== '' ? String(r[9]).trim() : ''
+      korStandardScore = r[10] != null && r[10] !== '' ? String(r[10]).trim() : ''
+      korPercentile = r[11] != null && r[11] !== '' ? String(r[11]).trim() : ''
+      korGrade = parseGradeValue(r[12], 'KOR')
 
-      if (pattern && rowData) {
-        for (const [rk, rv] of Object.entries(rowData)) {
-          if (pattern.test(rk)) {
-            const parsed = parseGradeValue(rv, subjectType)
-            if (parsed !== null) return parsed
+      mathSubject = r[13] != null ? String(r[13]).trim() : ''
+      mathRawScore = r[16] != null && r[16] !== '' ? String(r[16]).trim() : ''
+      mathStandardScore = r[17] != null && r[17] !== '' ? String(r[17]).trim() : ''
+      mathPercentile = r[18] != null && r[18] !== '' ? String(r[18]).trim() : ''
+      mathGrade = parseGradeValue(r[19], 'MATH')
+
+      engRawScore = r[20] != null && r[20] !== '' ? String(r[20]).trim() : ''
+      engStandardScore = r[21] != null && r[21] !== '' ? String(r[21]).trim() : ''
+      engPercentile = r[22] != null && r[22] !== '' ? String(r[22]).trim() : ''
+      engGrade = parseGradeValue(r[23], 'ENG')
+
+      inquiry1 = r[25] != null ? String(r[25]).trim() : ''
+      inq1RawScore = r[26] != null && r[26] !== '' ? String(r[26]).trim() : ''
+      inq1StandardScore = r[27] != null && r[27] !== '' ? String(r[27]).trim() : ''
+      inq1Percentile = r[28] != null && r[28] !== '' ? String(r[28]).trim() : ''
+      inq1Grade = parseGradeValue(r[29], 'INQ')
+
+      inquiry2 = r[30] != null ? String(r[30]).trim() : ''
+      inq2RawScore = r[31] != null && r[31] !== '' ? String(r[31]).trim() : ''
+      inq2StandardScore = r[32] != null && r[32] !== '' ? String(r[32]).trim() : ''
+      inq2Percentile = r[33] != null && r[33] !== '' ? String(r[33]).trim() : ''
+      inq2Grade = parseGradeValue(r[34], 'INQ')
+
+      histRawScore = r[35] != null && r[35] !== '' ? String(r[35]).trim() : ''
+      histStandardScore = r[36] != null && r[36] !== '' ? String(r[36]).trim() : ''
+      histPercentile = r[37] != null && r[37] !== '' ? String(r[37]).trim() : ''
+      histGrade = parseGradeValue(r[38], 'HIST')
+
+      secondLangSubject = r[39] != null ? String(r[39]).trim() : ''
+      secondLangRawScore = r[40] != null && r[40] !== '' ? String(r[40]).trim() : ''
+      secondLangStandardScore = r[41] != null && r[41] !== '' ? String(r[41]).trim() : ''
+      secondLangPercentile = r[42] != null && r[42] !== '' ? String(r[42]).trim() : ''
+      secondLangGrade = parseGradeValue(r[43], 'NORMAL')
+    } else {
+      // 일반/가채점 탭 유연 파싱 (헤더명 매핑 방식)
+      const getVal = (...keys) => {
+        if (rowData) {
+          for (const k of keys) {
+            if (rowData[k] !== undefined && rowData[k] !== null && rowData[k] !== '') {
+              return String(rowData[k]).trim()
+            }
+            const cleanK = k.replace(/[\r\n\s]+/g, '')
+            for (const ak of Object.keys(rowData)) {
+              if (ak.replace(/[\r\n\s]+/g, '') === cleanK && rowData[ak] !== undefined && rowData[ak] !== null && rowData[ak] !== '') {
+                return String(rowData[ak]).trim()
+              }
+            }
+          }
+          return ''
+        } else {
+          for (const k of keys) {
+            const cleanK = k.replace(/[\r\n\s]+/g, '')
+            if (colMap[cleanK] !== undefined && r[colMap[cleanK]] !== undefined && r[colMap[cleanK]] !== null && r[colMap[cleanK]] !== '') {
+              return String(r[colMap[cleanK]]).trim()
+            }
+          }
+          return ''
+        }
+      }
+
+      const getGradeNum = (keys, subjectType = 'NORMAL') => {
+        for (const k of keys) {
+          const v = getVal(k)
+          const parsed = parseGradeValue(v, subjectType)
+          if (parsed !== null) return parsed
+        }
+
+        let pattern = null
+        if (subjectType === 'KOR') pattern = /(?:^|[^가-힣])(?:국어|언어|국)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
+        else if (subjectType === 'MATH') pattern = /(?:^|[^가-힣])(?:수학|수리|수)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
+        else if (subjectType === 'ENG') pattern = /(?:^|[^가-힣])(?:영어|외국어|영)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
+        else if (subjectType === 'HIST') pattern = /(?:^|[^가-힣])(?:한국사|국사|한)(?:$|[^가-힣]|.*?(?:등급|석차|표점|원점수|성적))/i
+
+        if (pattern && rowData) {
+          for (const [rk, rv] of Object.entries(rowData)) {
+            if (pattern.test(rk)) {
+              const parsed = parseGradeValue(rv, subjectType)
+              if (parsed !== null) return parsed
+            }
+          }
+        }
+        return null
+      }
+
+      const getInqGrade = (inqIndex) => {
+        const specificKeys = inqIndex === 1
+          ? ['탐구1(등급)', '탐구1등급', '탐구1_등급', '제1선택_등급', '탐구1 등급', '사/과(1)_등급', '사탐1_등급', '과탐1_등급', '탐1_등급', '탐구1(원점수)', '탐구1원점수', '탐구1(표준점수)', '탐구1(표점)', '탐구1(백분위)', '탐구1점수', '탐구1']
+          : ['탐구2(등급)', '탐구2등급', '탐구2_등급', '제2선택_등급', '탐구2 등급', '사/과(2)_등급', '사탐2_등급', '과탐2_등급', '탐2_등급', '탐구2(원점수)', '탐구2원점수', '탐구2(표준점수)', '탐구2(표점)', '탐구2(백분위)', '탐구2점수', '탐구2']
+        
+        for (const k of specificKeys) {
+          const v = getVal(k)
+          const parsed = parseGradeValue(v, 'INQ')
+          if (parsed !== null) return parsed
+        }
+
+        if (rowData) {
+          const regex = inqIndex === 1 
+            ? /(?:탐구\s*1|선택\s*1|사탐\s*1|과탐\s*1|제1선택|1선택).*?(?:등급|표점|점수|성적)?/i
+            : /(?:탐구\s*2|선택\s*2|사탐\s*2|과탐\s*2|제2선택|2선택).*?(?:등급|표점|점수|성적)?/i
+          for (const [rk, rv] of Object.entries(rowData)) {
+            if (regex.test(rk)) {
+              const parsed = parseGradeValue(rv, 'INQ')
+              if (parsed !== null) return parsed
+            }
+          }
+        }
+        return null
+      }
+
+      name = getVal('이름', '성명', '학생명')
+      if (!name || name === '이름' || name === '성명') continue
+
+      seriesNum = Number(getVal('계열번호', '계열')) || 1
+      if (isNaN(seriesNum)) seriesNum = 1
+
+      classNum = getVal('반', '학급') || ''
+      studentNum = getVal('번호', '출석번호') || ''
+      rawMonth = getVal('월', '시행월', '회차') || (r && r[0] != null ? String(r[0]).trim() : '')
+      examName = getVal('시험명', '회차', '모의고사', '월', '구분', '시험구분', '시험', '학평', '모의평가')
+      if (!examName && r && r[0] != null && String(r[0]).trim()) {
+        examName = String(r[0]).trim()
+      }
+      if (!examName && rowData) {
+        for (const [k, v] of Object.entries(rowData)) {
+          const strV = String(v || '').trim()
+          if (strV.includes('수능') || /([0-9]{1,2})\s*월/.test(strV)) {
+            examName = strV
+            break
           }
         }
       }
-      return null
-    }
+      if (!examName) examName = targetTab
 
-    const getInqGrade = (inqIndex) => {
-      const specificKeys = inqIndex === 1
-        ? ['탐구1(등급)', '탐구1등급', '탐구1_등급', '제1선택_등급', '탐구1 등급', '사/과(1)_등급', '사탐1_등급', '과탐1_등급', '탐1_등급', '탐구1(원점수)', '탐구1원점수', '탐구1(표준점수)', '탐구1(표점)', '탐구1(백분위)', '탐구1점수', '탐구1']
-        : ['탐구2(등급)', '탐구2등급', '탐구2_등급', '제2선택_등급', '탐구2 등급', '사/과(2)_등급', '사탐2_등급', '과탐2_등급', '탐2_등급', '탐구2(원점수)', '탐구2원점수', '탐구2(표준점수)', '탐구2(표점)', '탐구2(백분위)', '탐구2점수', '탐구2']
-      
-      for (const k of specificKeys) {
-        const v = getVal(k)
-        const parsed = parseGradeValue(v, 'INQ')
-        if (parsed !== null) return parsed
+      const mMatch = examName.match(/(10|[3-9]|11)/)
+      if (mMatch) {
+        monthOrder = Number(mMatch[1])
       }
 
-      if (rowData) {
-        const regex = inqIndex === 1 
-          ? /(?:탐구\s*1|선택\s*1|사탐\s*1|과탐\s*1|제1선택|1선택).*?(?:등급|표점|점수|성적)?/i
-          : /(?:탐구\s*2|선택\s*2|사탐\s*2|과탐\s*2|제2선택|2선택).*?(?:등급|표점|점수|성적)?/i
-        for (const [rk, rv] of Object.entries(rowData)) {
-          if (regex.test(rk)) {
-            const parsed = parseGradeValue(rv, 'INQ')
-            if (parsed !== null) return parsed
-          }
+      korSubject = getVal(
+        '국어(과목)', '국어(선택)', '국어선택', '국어과목', '선택_국어',
+        '선택과목(국어)', '선택과목_국어', '국어선택과목', '국어_선택', '선택(국어)'
+      ) || ''
+      if (!korSubject) {
+        const gukVal = getVal('국어', '국')
+        if (gukVal && /화작|화법|언매|언어/.test(gukVal)) {
+          korSubject = gukVal
         }
       }
-      return null
-    }
+      korRawScore = getVal('국어(원점수)', '국어원점수', '국어_원점수', '국어원점수총점', '원점수총점(국어)')
+      korStandardScore = getVal('국어(표준점수)', '국어표준점수', '국어_표준점수', '국어(표점)', '국어표점')
+      korPercentile = getVal('국어(백분위)', '국어백분위', '국어_백분위')
 
-    const name = getVal('이름', '성명', '학생명')
-    if (!name) continue
-
-    const classNum = getVal('반', '학급') || ''
-    const studentNum = getVal('번호', '출석번호') || ''
-    let examName = getVal('시험명', '회차', '모의고사', '월', '구분', '시험구분', '시험', '학평', '모의평가')
-    if (!examName && r && r[0] != null && String(r[0]).trim()) {
-      examName = String(r[0]).trim()
-    }
-    if (!examName && rowData) {
-      for (const [k, v] of Object.entries(rowData)) {
-        const strV = String(v || '').trim()
-        if (strV.includes('수능') || /([0-9]{1,2})\s*월/.test(strV)) {
-          examName = strV
-          break
+      mathSubject = getVal(
+        '수학(과목)', '수학(선택)', '수학선택', '수학과목', '선택_수학',
+        '선택과목(수학)', '선택과목_수학', '수학선택과목', '수학_선택', '선택(수학)'
+      ) || ''
+      if (!mathSubject) {
+        const suVal = getVal('수학', '수')
+        if (suVal && /미적|기하|확률|확통/.test(suVal)) {
+          mathSubject = suVal
         }
       }
+      mathRawScore = getVal('수학(원점수)', '수학원점수', '수학_원점수', '수학원점수총점', '원점수총점(수학)')
+      mathStandardScore = getVal('수학(표준점수)', '수학표준점수', '수학_표준점수', '수학(표점)', '수학표점')
+      mathPercentile = getVal('수학(백분위)', '수학백분위', '수학_백분위')
+
+      engRawScore = getVal('영어(원점수)', '영어원점수', '영어_원점수')
+      engStandardScore = getVal('영어(표준점수)', '영어표준점수', '영어_표준점수')
+      engPercentile = getVal('영어(백분위)', '영어백분위', '영어_백분위')
+
+      inquiry1 = getVal('탐구1(과목)', '탐구1', '선택과목1', '탐구과목1', '사탐/과탐1', '제1선택', '탐구1과목') || ''
+      inq1RawScore = getVal('탐구1(원점수)', '탐구1원점수', '탐구1_원점수', '선택1_원점수')
+      inq1StandardScore = getVal('탐구1(표준점수)', '탐구1표준점수', '탐구1_표준점수', '탐구1(표점)', '선택1_표준점수')
+      inq1Percentile = getVal('탐구1(백분위)', '탐구1백분위', '탐구1_백분위', '선택1_백분위')
+
+      inquiry2 = getVal('탐구2(과목)', '탐구2', '선택과목2', '탐구과목2', '사탐/과탐2', '제2선택', '탐구2과목') || ''
+      inq2RawScore = getVal('탐구2(원점수)', '탐구2원점수', '탐구2_원점수', '선택2_원점수')
+      inq2StandardScore = getVal('탐구2(표준점수)', '탐구2표준점수', '탐구2_표준점수', '탐구2(표점)', '선택2_표준점수')
+      inq2Percentile = getVal('탐구2(백분위)', '탐구2백분위', '탐구2_백분위', '선택2_백분위')
+
+      korGrade = getGradeNum([
+        '국어(등급)', '국어등급', '국어_등급', '국어 등급', '국(등급)', '국등급',
+        '국어(원점수)', '국어원점수', '국어_원점수', '국어(표준점수)', '국어(표점)', '국어(백분위)', '국어점수', '국어', '국'
+      ], 'KOR')
+      mathGrade = getGradeNum([
+        '수학(등급)', '수학등급', '수학_등급', '수학 등급', '수(등급)', '수등급',
+        '수학(원점수)', '수학원점수', '수학_원점수', '수학(표준점수)', '수학(표점)', '수학(백분위)', '수학점수', '수학', '수'
+      ], 'MATH')
+      engGrade = getGradeNum([
+        '영어(등급)', '영어등급', '영어_등급', '영어 등급', '영(등급)', '영등급',
+        '영어(원점수)', '영어원점수', '영어_원점수', '영어(표준점수)', '영어(표점)', '영어점수', '영어', '영'
+      ], 'ENG')
+      inq1Grade = getInqGrade(1)
+      inq2Grade = getInqGrade(2)
+
+      histRawScore = getVal('한국사(원점수)', '한국사원점수', '한국사_원점수')
+      histStandardScore = getVal('한국사(표준점수)', '한국사표준점수')
+      histPercentile = getVal('한국사(백분위)', '한국사백분위')
+      histGrade = getGradeNum([
+        '한국사(등급)', '한국사등급', '한국사_등급', '한국사 등급', '한(등급)', '한등급',
+        '한국사(원점수)', '한국사원점수', '한국사(표준점수)', '한국사점수', '한국사'
+      ], 'HIST')
+
+      secondLangSubject = getVal('제2외국어(과목)', '제2외국어과목', '제2외국어', '제2외국어과목명')
+      secondLangRawScore = getVal('제2외국어(원점수)', '제2외국어원점수')
+      secondLangStandardScore = getVal('제2외국어(표준점수)', '제2외국어표준점수')
+      secondLangPercentile = getVal('제2외국어(백분위)', '제2외국어백분위')
+      secondLangGrade = getGradeNum([
+        '제2외국어(등급)', '제2외국어등급', '제2외국어_등급', '제2외국어',
+        '제2외국어(원점수)', '제2외국어(표준점수)'
+      ], 'NORMAL')
+
+      grade = Number(getVal('학년', '학년구분')) || (r && r[0] != null && [1, 2, 3].includes(Number(r[0])) ? Number(r[0]) : 3)
     }
-    if (!examName) examName = targetTab
 
-    // 국어 선택과목 (숫자 점수 오인식 방지)
-    let korSubject = getVal(
-      '국어(과목)', '국어(선택)', '국어선택', '국어과목', '선택_국어',
-      '선택과목(국어)', '선택과목_국어', '국어선택과목', '국어_선택', '선택(국어)'
-    ) || ''
-    if (!korSubject) {
-      const gukVal = getVal('국어', '국')
-      if (gukVal && /화작|화법|언매|언어/.test(gukVal)) {
-        korSubject = gukVal
-      }
-    }
-
-    // 수학 선택과목 (숫자 점수 오인식 방지)
-    let mathSubject = getVal(
-      '수학(과목)', '수학(선택)', '수학선택', '수학과목', '선택_수학',
-      '선택과목(수학)', '선택과목_수학', '수학선택과목', '수학_선택', '선택(수학)'
-    ) || ''
-    if (!mathSubject) {
-      const suVal = getVal('수학', '수')
-      if (suVal && /미적|기하|확률|확통/.test(suVal)) {
-        mathSubject = suVal
-      }
-    }
-
-    const inquiry1 = getVal('탐구1(과목)', '탐구1', '선택과목1', '탐구과목1', '사탐/과탐1', '제1선택', '탐구1과목') || ''
-    const inquiry2 = getVal('탐구2(과목)', '탐구2', '선택과목2', '탐구과목2', '사탐/과탐2', '제2선택', '탐구2과목') || ''
-
-    // 등급 파싱 (수능최저학력기준 판정용 & 과목별 통계용, 1~9등급 보장 및 원점수/표준점수 자동 환산)
-    const korGrade = getGradeNum([
-      '국어(등급)', '국어등급', '국어_등급', '국어 등급', '국(등급)', '국등급',
-      '국어(원점수)', '국어원점수', '국어_원점수', '국어(표준점수)', '국어(표점)', '국어(백분위)', '국어점수', '국어', '국'
-    ], 'KOR')
-    const mathGrade = getGradeNum([
-      '수학(등급)', '수학등급', '수학_등급', '수학 등급', '수(등급)', '수등급',
-      '수학(원점수)', '수학원점수', '수학_원점수', '수학(표준점수)', '수학(표점)', '수학(백분위)', '수학점수', '수학', '수'
-    ], 'MATH')
-    const engGrade = getGradeNum([
-      '영어(등급)', '영어등급', '영어_등급', '영어 등급', '영(등급)', '영등급',
-      '영어(원점수)', '영어원점수', '영어_원점수', '영어(표준점수)', '영어(표점)', '영어점수', '영어', '영'
-    ], 'ENG')
-    const inq1Grade = getInqGrade(1)
-    const inq2Grade = getInqGrade(2)
-    const histGrade = getGradeNum([
-      '한국사(등급)', '한국사등급', '한국사_등급', '한국사 등급', '한(등급)', '한등급',
-      '한국사(원점수)', '한국사원점수', '한국사(표준점수)', '한국사점수', '한국사'
-    ], 'HIST')
-    const secondLangGrade = getGradeNum([
-      '제2외국어(등급)', '제2외국어등급', '제2외국어_등급', '제2외국어',
-      '제2외국어(원점수)', '제2외국어(표준점수)'
-    ], 'NORMAL')
-
-    records.push({
+    const rec = {
+      grade,
+      monthOrder: monthOrder || (parseInt(String(examName).replace(/[^0-9]/g, ''), 10) || null),
       examName,
+      rawMonth: rawMonth || String(examName || ''),
       name,
       classNum,
       studentNum,
-      studentKey: `${classNum}-${studentNum}_${name}`,
+      seriesNum,
+      studentKey: `${grade}-${classNum}-${studentNum}_${name}`,
+      legacyStudentKey: `${classNum}-${studentNum}_${name}`,
       korSubject,
-      mathSubject,
-      inquiry1,
-      inquiry2,
+      korRawScore,
+      korStandardScore,
+      korPercentile,
       korGrade,
+      mathSubject,
+      mathRawScore,
+      mathStandardScore,
+      mathPercentile,
       mathGrade,
+      engRawScore,
+      engStandardScore,
+      engPercentile,
       engGrade,
+      inquiry1,
+      inq1RawScore,
+      inq1StandardScore,
+      inq1Percentile,
       inq1Grade,
+      inquiry2,
+      inq2RawScore,
+      inq2StandardScore,
+      inq2Percentile,
       inq2Grade,
+      histRawScore,
+      histStandardScore,
+      histPercentile,
       histGrade,
+      secondLangSubject,
+      secondLangRawScore,
+      secondLangStandardScore,
+      secondLangPercentile,
       secondLangGrade,
       rawRow: rowData || {}
-    })
+    }
+
+    if (hasAnyMockScore(rec)) {
+      records.push(rec)
+    }
   }
 
   return records
@@ -1175,6 +1763,13 @@ export function groupMockRecordsByStudent(records = []) {
       map.set(key, [])
     }
     map.get(key).push(r)
+
+    if (r.legacyStudentKey && r.legacyStudentKey !== key) {
+      if (!map.has(r.legacyStudentKey)) {
+        map.set(r.legacyStudentKey, [])
+      }
+      map.get(r.legacyStudentKey).push(r)
+    }
   })
 
   // 각 학생의 시험 이력을 월 순서대로 정렬
@@ -1960,4 +2555,130 @@ export async function fetchCsatPassRateTable(sheetId = null, forceRefresh = fals
     console.warn(`[fetchCsatPassRateTable] 오류 발생, 기본 벤치마크 적용:`, err)
     return DEFAULT_CSAT_PASS_RATE_BENCHMARK
   }
+}
+
+/**
+ * 구글 시트 '진급명렬' 탭 조회 및 복호화
+ */
+export async function fetchAndParsePromotionData(sheetId = null, customPassword = null) {
+  const cleanId = sheetId ? extractSheetId(sheetId) : await getKcueSheetId()
+  if (!cleanId) return []
+
+  const actualTabs = await getActualGoogleSheetTabs(cleanId)
+  const promoTab = actualTabs.find(t => t.includes('진급') || t.includes('진급명렬'))
+  if (!promoTab) return []
+
+  const password = customPassword || getStatSessionPassword()
+  const csvText = await fetchKcueSheetTabCsv(cleanId, promoTab)
+  if (!csvText || typeof csvText !== 'string') return []
+
+  const wb = XLSX.read(csvText, { type: 'string' })
+  if (!wb.SheetNames || wb.SheetNames.length === 0) return []
+
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+  if (!rows || rows.length < 2) return []
+
+  const rawHeaders = rows[0] || []
+  let encColIdx = rawHeaders.findIndex(h => String(h || '').trim() === 'encrypted_data')
+  if (encColIdx === -1) {
+    for (const cIdx of [0, 156, 104, 78]) {
+      if (rawHeaders.length > cIdx && String(rows[1]?.[cIdx] || '').trim().startsWith('U2FsdGVkX1')) {
+        encColIdx = cIdx
+        break
+      }
+    }
+    if (encColIdx === -1 && rows[1]) {
+      for (let c = 0; c < rows[1].length; c++) {
+        if (String(rows[1][c] || '').trim().startsWith('U2FsdGVkX1')) {
+          encColIdx = c
+          break
+        }
+      }
+    }
+  }
+
+  const isEncrypted = encColIdx !== -1 && String(rows[1]?.[encColIdx] || '').trim().startsWith('U2FsdGVkX1')
+  const colMap = {}
+  rawHeaders.forEach((h, idx) => {
+    if (h) colMap[String(h).replace(/[\r\n\s]+/g, '')] = idx
+  })
+
+  const records = []
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]
+    if (!r || r.length === 0) continue
+
+    let rowData = null
+    if (isEncrypted) {
+      const cipher = String(r[encColIdx] || '').trim()
+      if (cipher) {
+        const decryptedStr = decryptAES(cipher, password)
+        if (decryptedStr) {
+          try {
+            rowData = JSON.parse(decryptedStr)
+          } catch (e) {}
+        }
+      }
+    }
+
+    const getVal = (...keys) => {
+      if (rowData) {
+        for (const k of keys) {
+          if (rowData[k] !== undefined && rowData[k] !== null && rowData[k] !== '') {
+            return String(rowData[k]).trim()
+          }
+          const cleanK = k.replace(/[\r\n\s]+/g, '')
+          for (const ak of Object.keys(rowData)) {
+            if (ak.replace(/[\r\n\s]+/g, '') === cleanK && rowData[ak] !== undefined && rowData[ak] !== null && rowData[ak] !== '') {
+              return String(rowData[ak]).trim()
+            }
+          }
+        }
+        return ''
+      } else {
+        for (const k of keys) {
+          const cleanK = k.replace(/[\r\n\s]+/g, '')
+          if (colMap[cleanK] !== undefined && r[colMap[cleanK]] !== undefined && r[colMap[cleanK]] !== null && r[colMap[cleanK]] !== '') {
+            return String(r[colMap[cleanK]]).trim()
+          }
+        }
+        return ''
+      }
+    }
+
+    const prevYear = getVal('학년도', '이전학년도') || r[0] || '2026'
+    const prevGrade = Number(getVal('학년', '이전학년') || r[1]) || 2
+    const prevClass = String(getVal('반', '이전반') || r[2] || '').trim()
+    const prevNum = Number(getVal('번호', '이전번호') || r[3]) || 0
+    // E열(4)은 이전 이름, J열(9)은 '신이름' (개명자 및 헤더 중복 완벽 방어)
+    const oldName = getVal('이전이름', '이전성명') || ((r && r[4]) ? String(r[4]).trim() : getVal('이름', '성명')) || ''
+    const newName = getVal('신이름', '새이름', '신성명') || ((r && r[9]) ? String(r[9]).trim() : oldName) || oldName
+    const name = oldName || newName
+
+    const newYear = getVal('신학년도', '다음학년도') || r[5] || '2027'
+    const newGrade = Number(getVal('신학년', '다음학년') || r[6]) || 3
+    const newClass = String(getVal('신반', '다음반') || r[7] || '').trim()
+    const newNum = Number(getVal('신번호', '다음번호') || r[8]) || 0
+
+    if (name && prevClass && newClass) {
+      records.push({
+        prevYear,
+        prevGrade,
+        prevClass,
+        prevNum,
+        name: oldName,
+        newName: newName,
+        isRenamed: Boolean(oldName && newName && oldName !== newName),
+        newYear,
+        newGrade,
+        newClass,
+        newNum,
+        oldStudentKey: `${prevClass}-${prevNum}_${oldName}`,
+        newStudentKey: `${newClass}-${newNum}_${newName}`
+      })
+    }
+  }
+
+  return records
 }

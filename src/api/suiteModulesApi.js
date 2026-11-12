@@ -2,12 +2,12 @@ import { ref } from 'vue'
 import { supabase } from '../utils/supabaseClient.js'
 
 // ── 기본 시스템명 및 캐시 키 ──────────────────────────────────────────
-export const DEFAULT_SYSTEM_NAME = '3학년 진학·학사 통합 포털'
+export const DEFAULT_SYSTEM_NAME = ''
 export const CONFIG_KEY_LOGIN_SYSTEM_NAME = 'login_system_name'
 export const CONFIG_KEY_MODULES_CACHE = 'suite_modules_cache'
 
 export const loginSystemName = ref(
-  localStorage.getItem('pcm_login_system_name') || DEFAULT_SYSTEM_NAME
+  (typeof localStorage !== 'undefined' ? localStorage.getItem('pcm_login_system_name') : '') || ''
 )
 
 // ── 5개 사용자 그룹 정의 (학부모는 준비 중 및 흐림 처리) ────────────
@@ -506,7 +506,7 @@ export async function isModuleSecretAccessEnabled(moduleId) {
 
 // ── 추천 시스템 이름 목록 (관리자 편의 퀵픽) ───────────────────────────
 export const RECOMMENDED_SYSTEM_NAMES = [
-  '3학년 진학·학사 통합 포털',
+  '3학년 포털',
   '3학년 통합 학년업무 시스템',
   '꼼스위트 (ggomsuite) 365',
   '스마트 학년업무 포털 (Smart Grade)',
@@ -514,14 +514,78 @@ export const RECOMMENDED_SYSTEM_NAMES = [
   '올인원 학년통합 업무시스템'
 ]
 
-// ── 1. 로그인 시스템명 조회 ───────────────────────────────────────────
-export async function fetchLoginSystemName() {
-  const cached = localStorage.getItem('pcm_login_system_name')
-  if (cached) {
-    loginSystemName.value = cached
+// ── 문서 타이틀(브라우저 탭 명칭) 동기화 ─────────────────────────────
+export function syncDocumentTitle() {
+  if (typeof document === 'undefined') return
+  const sName = (typeof localStorage !== 'undefined' ? localStorage.getItem('pcm_school_name') : '') || ''
+  const pTitle = (loginSystemName.value || '').trim()
+  const cleanSchool = sName && sName !== '우리학교' ? sName.trim() : ''
+  if (cleanSchool && pTitle) {
+    document.title = `${cleanSchool} - ${pTitle}`
+  } else if (cleanSchool) {
+    document.title = cleanSchool
+  } else if (pTitle) {
+    document.title = pTitle
+  }
+}
+
+// ── 0. 초기 구동 전 관리자 설정 대문명 사전 검사 (로그인 창 렌더링 전 최우선 완료) ────────────────
+export async function initLoginSystemConfig() {
+  // 1. 브라우저 캐시에서 먼저 확인
+  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('pcm_login_system_name') : null
+  if (cached && cached.trim()) {
+    loginSystemName.value = cached.trim()
   }
 
+  syncDocumentTitle()
+
   if (!supabase) return loginSystemName.value
+
+  // 2. DB(config 테이블)에서 관리자가 지정한 대문명을 최우선 조회하여 확정 (최대 3.5초 안전 타임아웃)
+  try {
+    const fetchPromise = supabase
+      .from('config')
+      .select('value')
+      .eq('key', CONFIG_KEY_LOGIN_SYSTEM_NAME)
+      .maybeSingle()
+
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ timeout: true }), 3500))
+    const res = await Promise.race([fetchPromise, timeoutPromise])
+
+    if (res && !res.timeout && !res.error) {
+      const val = res.data?.value?.trim()
+      if (val) {
+        // 관리자가 설정한 대문명이 있으면 즉시 채택
+        loginSystemName.value = val
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('pcm_login_system_name', val)
+        }
+      } else {
+        loginSystemName.value = ''
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('pcm_login_system_name')
+        }
+      }
+      syncDocumentTitle()
+    }
+  } catch (e) {
+    console.warn('Initial login system config check failed:', e)
+  }
+
+  return loginSystemName.value
+}
+
+// ── 1. 로그인 시스템명 조회 ───────────────────────────────────────────
+export async function fetchLoginSystemName() {
+  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('pcm_login_system_name') : null
+  if (cached && cached.trim()) {
+    loginSystemName.value = cached.trim()
+  }
+
+  if (!supabase) {
+    syncDocumentTitle()
+    return loginSystemName.value
+  }
 
   try {
     const { data, error } = await supabase
@@ -532,20 +596,32 @@ export async function fetchLoginSystemName() {
 
     if (!error && data && data.value && data.value.trim()) {
       loginSystemName.value = data.value.trim()
-      localStorage.setItem('pcm_login_system_name', loginSystemName.value)
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('pcm_login_system_name', loginSystemName.value)
+      }
+    } else if (!error && (!data || !data.value || !data.value.trim())) {
+      loginSystemName.value = ''
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('pcm_login_system_name')
+      }
     }
   } catch (e) {
     console.warn('Failed to fetch login system name from DB:', e)
   }
 
+  syncDocumentTitle()
   return loginSystemName.value
 }
 
 // ── 2. 로그인 시스템명 저장 ───────────────────────────────────────────
 export async function saveLoginSystemName(newName) {
-  const trimmed = (newName || '').trim() || DEFAULT_SYSTEM_NAME
+  const trimmed = (newName || '').trim()
   loginSystemName.value = trimmed
-  localStorage.setItem('pcm_login_system_name', trimmed)
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('pcm_login_system_name', trimmed)
+  }
+
+  syncDocumentTitle()
 
   if (!supabase) return { success: true }
 

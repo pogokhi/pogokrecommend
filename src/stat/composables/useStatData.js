@@ -4,9 +4,11 @@ import rawAppsData from '../data/applications.json'
 export { rawAppsData }
 import { MULTI_YEAR_STATS, computeYearMultiYearStats } from '../data/multiYearStats.js'
 import { 
-  getKcueSheetId, 
+  getKcueSheetId,
+  extractSheetId, 
   getKcueYearSheets, 
-  DEFAULT_KCUE_YEAR_SHEETS, 
+  DEFAULT_KCUE_YEAR_SHEETS,
+  DEFAULT_KCUE_SHEET_ID, 
   fetchAndParseKcueYearData, 
   fetchBasicSchoolStats,
   STANDARD_KCUE_YEARS,
@@ -14,7 +16,8 @@ import {
   getStatSessionPassword,
   clearStatSessionPassword,
   fetchAndParseKcueMockData,
-  groupMockRecordsByStudent
+  groupMockRecordsByStudent,
+  DEFAULT_CSAT_PASS_RATE_BENCHMARK
 } from '../../api/statApi.js'
 import { supabase } from '../../utils/supabaseClient'
 import officialStatsData from '../data/officialStats.json'
@@ -30,6 +33,20 @@ export function getCurrentAcademicYear(date = new Date()) {
   const m = date.getMonth() + 1 // 1 ~ 12
   const calc = m >= 3 ? y + 1 : y
   return String(Math.max(calc, 2027))
+}
+
+/**
+ * 특정 학년의 대입 학년도 계산:
+ * - 3학년 (기본): getCurrentAcademicYear() (예: 2026.11 기준 '2027', 2027.05 기준 '2028')
+ * - 2학년: 기본 대입학년도 + 1년 (예: 2026.11 기준 '2028', 2027.05 기준 '2029')
+ * - 1학년: 기본 대입학년도 + 2년 (예: 2026.11 기준 '2029', 2027.05 기준 '2030')
+ */
+export function getGradeAdmissionYear(grade = 3, date = new Date()) {
+  const base = Number(getCurrentAcademicYear(date))
+  const g = Number(grade)
+  if (g === 2) return String(base + 1)
+  if (g === 1) return String(base + 2)
+  return String(base)
 }
 
 /**
@@ -53,6 +70,7 @@ const officialStats = ref(officialStatsData)
 export const mockExamRecords = ref([])
 export const studentMockExamsMap = ref(new Map())
 export const isLoadingMockExams = ref(false)
+export const currentMockLoadedYear = ref(null)
 
 // 수능최저 시트(2027수능최저, 2028수능최저) 전역 상태
 export const csatMinScoreTable = ref([])
@@ -115,24 +133,33 @@ export async function loadCsatMinScoreData(year = '2027', forceReload = false) {
 }
 
 /**
- * 구글 시트 '2027모의가채점' 탭의 모의고사 성적 데이터를 비동기 로드 및 복호화
+ * 구글 시트 모의고사 탭의 성적 데이터를 비동기 로드 및 복호화
+ * @param {boolean} forceReload 강제 재로드 여부
+ * @param {string|null} targetYear 대상 대입학년도 (미지정 시 selectedAcademicYear 사용)
  */
-export async function loadMockExamData(forceReload = false) {
-  if (!forceReload && mockExamRecords.value.length > 0) {
+export async function loadMockExamData(forceReload = false, targetYear = null) {
+  const yr = targetYear ? String(targetYear) : (selectedAcademicYear?.value || '2027')
+  if (!forceReload && mockExamRecords.value.length > 0 && String(currentMockLoadedYear.value) === yr) {
     return mockExamRecords.value
   }
   isLoadingMockExams.value = true
   try {
     const sheetId = await getKcueSheetId()
-    const records = await fetchAndParseKcueMockData(sheetId)
+    const records = await fetchAndParseKcueMockData(sheetId, null, null, forceReload, yr)
+    currentMockLoadedYear.value = yr
     if (records && records.length > 0) {
       mockExamRecords.value = records
       studentMockExamsMap.value = groupMockRecordsByStudent(records)
-      console.log(`[useStatData] 모의고사 성적 ${records.length}건 로드 완료 (학생수: ${studentMockExamsMap.value.size}명)`)
+      console.log(`[useStatData] ${yr}학년도 모의고사 성적 ${records.length}건 로드 완료 (학생수: ${studentMockExamsMap.value.size}명)`)
+    } else {
+      mockExamRecords.value = []
+      studentMockExamsMap.value = new Map()
     }
-    return records
+    return records || []
   } catch (err) {
-    console.warn('[useStatData] 모의고사 성적 로드 실패:', err)
+    console.warn(`[useStatData] ${yr}학년도 모의고사 성적 로드 실패:`, err)
+    mockExamRecords.value = []
+    studentMockExamsMap.value = new Map()
     return []
   } finally {
     isLoadingMockExams.value = false
@@ -140,12 +167,14 @@ export async function loadMockExamData(forceReload = false) {
 }
 
 // Academic Year State & Multi-Year Sheet Management
+const currentAcademicYear = getCurrentAcademicYear() // 오늘(2026.11 기준) '2027' 대입
 const savedYear = localStorage.getItem('pcm_stat_selected_year')
-const initialYear = STANDARD_KCUE_YEARS.includes(savedYear) ? savedYear : '2027'
+// 저장된 연도가 유효하고 현재 대입 학년도 이상일 때만 유지 (과거 연도이거나 유효하지 않은 경우 현재 대입 학년도로 기본 선택)
+const initialYear = (savedYear && STANDARD_KCUE_YEARS.includes(savedYear) && Number(savedYear) >= Number(currentAcademicYear))
+  ? savedYear
+  : currentAcademicYear
 const selectedAcademicYear = ref(initialYear)
-if (savedYear !== initialYear) {
-  localStorage.setItem('pcm_stat_selected_year', initialYear)
-}
+localStorage.setItem('pcm_stat_selected_year', initialYear)
 
 const selectedScope = ref(localStorage.getItem('pcm_stat_selected_scope') || 'SUSI_ALL')
 const availableAcademicYears = ref([...STANDARD_KCUE_YEARS])
@@ -305,36 +334,39 @@ function updateOfficialStats(strYear, appsList) {
 async function loadPeriodData(year, period = '수시', forceReload = false) {
   const strYear = String(year)
   const cacheKey = `${strYear}_${period}`
-  const hasPassword = !!getStatSessionPassword()
 
   if (!forceReload && yearlyApplicationsCache.value[cacheKey] && yearlyApplicationsCache.value[cacheKey].length > 0) {
-    if (!(hasPassword && yearlyApplicationsCache.value[cacheKey] === rawAppsData)) {
-      return yearlyApplicationsCache.value[cacheKey]
+    return yearlyApplicationsCache.value[cacheKey]
+  }
+
+  const rawSheetId = await getKcueSheetId()
+  const sheetId = extractSheetId(rawSheetId) || DEFAULT_KCUE_SHEET_ID
+
+  // 1. 구글 시트 ID가 전혀 없는 경우
+  if (!sheetId) {
+    if (strYear === '2027' && period === '수시') {
+      yearlyApplicationsCache.value[cacheKey] = rawAppsData
+      return rawAppsData
     }
+    return []
   }
 
-  // 2027 수시 기본값 fallback (비밀번호가 전혀 없는 순수 데모 상태일 때만 사용)
-  if (strYear === '2027' && period === '수시' && !forceReload && !hasPassword) {
-    yearlyApplicationsCache.value[cacheKey] = rawAppsData
-    return rawAppsData
-  }
-
-  const sheetId = await getKcueSheetId()
   try {
     const loaded = await fetchAndParseKcueYearData(sheetId, strYear, period)
     if (loaded && loaded.length > 0) {
       yearlyApplicationsCache.value[cacheKey] = loaded
       return loaded
     }
-    // 구글 시트에 데이터가 없고 비밀번호도 없는 경우 fallback
-    if (strYear === '2027' && period === '수시' && !hasPassword) {
+    // 시트에서 데이터를 찾지 못한 경우: 2027 수시는 번들 원자료로 안전 복구
+    if (strYear === '2027' && period === '수시') {
       yearlyApplicationsCache.value[cacheKey] = rawAppsData
       return rawAppsData
     }
     return []
   } catch (e) {
     console.warn(`[useStatData] Failed to load ${strYear}${period} tab:`, e)
-    if (strYear === '2027' && period === '수시' && !hasPassword) {
+    // 네트워크 404나 오류 발생 시에도 2027 수시는 정상 번들 데이터로 100% 안전 복구
+    if (strYear === '2027' && period === '수시') {
       yearlyApplicationsCache.value[cacheKey] = rawAppsData
       return rawAppsData
     }
@@ -343,11 +375,7 @@ async function loadPeriodData(year, period = '수시', forceReload = false) {
 }
 
 /**
- * 학년도 및 스코프(모집시기/대학구분) 동시 적용 및 데이터 갱신
- */
-/**
  * 특정 대입 학년도의 전체 지원자 데이터(수시+정시) 독립 조회
- * StatView의 전역 applications.value를 변형시키지 않고, 캘린더나 외부 위젯에서 특정 학년도 원자료를 안전하게 조회
  */
 export async function getApplicationsForAcademicYear(targetYear = '2027', forceReload = false) {
   const strYear = String(targetYear)
@@ -355,13 +383,6 @@ export async function getApplicationsForAcademicYear(targetYear = '2027', forceR
 
   if (!forceReload && yearlyApplicationsCache.value[combinedKey] && yearlyApplicationsCache.value[combinedKey].length > 0) {
     return yearlyApplicationsCache.value[combinedKey]
-  }
-
-  const hasPassword = !!getStatSessionPassword()
-  // 2027 기본 데모 fallback (구글시트 세션 비밀번호 미입력 시 번들된 2027 원자료 즉시 반환)
-  if (strYear === '2027' && !hasPassword && !forceReload) {
-    yearlyApplicationsCache.value[combinedKey] = rawAppsData
-    return rawAppsData
   }
 
   try {
@@ -393,13 +414,32 @@ async function applyYearAndScope(year, scope, forceReload = false) {
   yearDataError.value = null
 
   isLoadingYearData.value = true
+
+  // 무한 로딩 방지 비상 타임아웃 세이프가드 (8초 초과 시 강제 해제)
+  const safeguardTimer = setTimeout(() => {
+    if (isLoadingYearData.value) {
+      console.warn('[useStatData] Safeguard timer triggered: force clearing isLoadingYearData')
+      if (!applications.value || applications.value.length === 0) {
+        if (selectedAcademicYear.value === '2027') {
+          applications.value = rawAppsData
+          updateOfficialStats('2027', rawAppsData)
+        }
+      }
+      isLoadingYearData.value = false
+    }
+  }, 8000)
+
   try {
-    // 1. 구글 시트의 '기본통계' 탭(학년도별 3학년 재학생 총원 및 학급 수) 로드
+    // 1. 구글 시트의 '기본통계' 탭 로드
     if (forceReload || Object.keys(basicSchoolStats.value).length === 0) {
-      const sheetId = await getKcueSheetId()
-      const basic = await fetchBasicSchoolStats(sheetId, forceReload)
-      if (basic && typeof basic === 'object') {
-        basicSchoolStats.value = basic
+      try {
+        const sheetId = await getKcueSheetId()
+        const basic = await fetchBasicSchoolStats(sheetId, forceReload)
+        if (basic && typeof basic === 'object') {
+          basicSchoolStats.value = basic
+        }
+      } catch (err) {
+        console.warn('[useStatData] fetchBasicSchoolStats error caught:', err)
       }
     }
 
@@ -415,8 +455,15 @@ async function applyYearAndScope(year, scope, forceReload = false) {
       combined = await loadPeriodData(strYear, '수시', forceReload)
     }
 
+    // 2027학년도인데 비어있는 경우 안전 복구
+    if (combined.length === 0 && strYear === '2027') {
+      combined = rawAppsData
+    }
+
     applications.value = combined
     updateOfficialStats(strYear, combined)
+    // 연도 변경 시 해당 학년도의 모의고사 성적 동기화 (2026/2025 등 모의 탭 미존재 시 빈 배열로 안전 초기화)
+    loadMockExamData(forceReload, strYear).catch(e => console.warn(e))
 
     if (combined.length === 0) {
       const periodLabel = scope.startsWith('JUNGSI') ? '정시' : '수시'
@@ -424,8 +471,13 @@ async function applyYearAndScope(year, scope, forceReload = false) {
     }
   } catch (e) {
     console.warn(`[useStatData] applyYearAndScope failed:`, e)
+    if (strYear === '2027') {
+      applications.value = rawAppsData
+      updateOfficialStats('2027', rawAppsData)
+    }
     yearDataError.value = e.message || '데이터를 불러오는 중 오류가 발생했습니다.'
   } finally {
+    clearTimeout(safeguardTimer)
     isLoadingYearData.value = false
   }
 }
@@ -534,10 +586,10 @@ async function generateMultiYearStatsForYear(year, forceReload = true) {
 /**
  * 구글 시트에 존재하는 모든 수시 탭을 자동 감지하여 5개년 통계에 일괄 생성/동기화
  */
-async function syncAllAvailableSheetYears() {
+async function syncAllAvailableSheetYears(forceReload = false) {
   const sheetId = await getKcueSheetId()
   if (!sheetId) throw new Error('대교협 구글 스프레드시트 ID가 설정되지 않았습니다.')
-  const actualTabs = await getActualGoogleSheetTabs(sheetId, true)
+  const actualTabs = await getActualGoogleSheetTabs(sheetId, forceReload)
 
   const matchedYears = []
   for (const tab of actualTabs) {
@@ -554,7 +606,7 @@ async function syncAllAvailableSheetYears() {
   const results = []
   for (const y of matchedYears) {
     try {
-      const res = await generateMultiYearStatsForYear(y, true)
+      const res = await generateMultiYearStatsForYear(y, forceReload)
       results.push({ year: y, success: true, count: res.totalApplications, students: res.applicantStudents, avgGrade: res.avgGrade })
     } catch (err) {
       results.push({ year: y, success: false, error: err.message })
@@ -594,7 +646,7 @@ const searchKeyword = ref('')
 /**
  * 학생 이름 마스킹 단계 (3단계 순환):
  * 0: MASK_MODES.LAST_ONLY (기본 디폴트) - 맨 뒤 한 글자만 표시 (예: "홍길동" -> "**동", "이민" -> "*민")
- * 1: MASK_MODES.FIRST_AND_LAST - 맨 앞글자(성)와 맨 뒷글자 총 2글자 표시 (예: "홍길동" -> "홍*동", "이민" -> "이민", "남궁민수" -> "남**수")
+ * 1: MASK_MODES.FIRST_AND_LAST - 맨 앞글자(성)와 맨 뒷글자 표시 (예: "홍길동" -> "홍*동", 2글자는 성 가림 "고윤" -> "*윤", "남궁민수" -> "남**수")
  * 2: MASK_MODES.UNMASKED - 모든 이름 다 보임 (예: "홍길동")
  */
 export const MASK_MODES = {
@@ -660,9 +712,10 @@ export function maskName(name, forceLevel = null) {
     return str
   }
 
-  // 2단계: 맨 앞글자 성과 맨 뒷글자까지 총 2개 글자만 보임
+  // 2단계: 맨 앞글자 성과 맨 뒷글자 표시 (단, 2글자 이름은 성 가림: '*윤')
   if (mode === MASK_MODES.FIRST_AND_LAST) {
-    if (str.length <= 2) return str
+    if (str.length <= 1) return '*'
+    if (str.length === 2) return '*' + str[1]
     return str[0] + '*'.repeat(str.length - 2) + str[str.length - 1]
   }
 
@@ -676,6 +729,33 @@ export function maskName(name, forceLevel = null) {
 export function formatGrade(val) {
   if (val === null || val === undefined || isNaN(val)) return '-'
   return Number(val).toFixed(2)
+}
+
+// Standalone Helper: Format 5-digit student code (예: 3학년 1반 1번 -> "30101")
+export function formatStudentCode(st) {
+  if (!st) return ''
+  const directCode = st.student_code || st.studentCode
+  if (directCode && String(directCode).trim().length === 5) {
+    return String(directCode).trim()
+  }
+  if (st.isGraduate || st.classNum === '졸업생') {
+    const rawNum = String(st.studentNum || '').trim()
+    if (rawNum.length === 5) return rawNum
+    if (/^\d+$/.test(rawNum) && rawNum.length <= 5) {
+      return rawNum.padStart(5, '0')
+    }
+    return rawNum || '졸업생'
+  }
+  const g = String(st.grade || 3).trim()
+  const c = parseInt(st.classNum, 10)
+  const n = parseInt(st.studentNum, 10)
+  if (!isNaN(c) && !isNaN(n)) {
+    return `${g}${String(c).padStart(2, '0')}${String(n).padStart(2, '0')}`
+  }
+  if (st.studentNum && String(st.studentNum).length === 5) {
+    return String(st.studentNum)
+  }
+  return `${st.classNum}-${st.studentNum}`
 }
 
 export const TOP_TIER_TARGET_UNIVS = [
@@ -1067,8 +1147,160 @@ export function useStatData() {
     }
   }
 
+  // 우리 학교 데이터 기반 수능최저 및 실질 경쟁률 종합 통계 (동적 산출)
+  const schoolMinScoreStats = computed(() => {
+    const apps = applications.value || []
+    const minApps = apps.filter(a => a.hasMinScore || (a.minScoreReq && !a.minScoreReq.includes('없음') && a.minScoreReq.length > 2))
+    
+    // 수시 지원 데이터 미등록 또는 수능최저 전형 미존재 시 (더미 데이터 노출 방지)
+    if (minApps.length === 0) {
+      return {
+        totalMinApps: 0,
+        avgInitialRate: '-',
+        avgRealRate: '-',
+        avgEffectiveRate: '-',
+        gpaCount: 0,
+        gpaInitialRate: '-',
+        gpaRealRate: '-',
+        gpaEffectiveRate: '-',
+        avgPassRate: '-',
+        gpaPassRate: '-',
+        schoolPassRate: '-',
+        easeFactor: '-'
+      }
+    }
+
+    const benchmarkList = (csatPassRateTable.value && csatPassRateTable.value.length > 0)
+      ? csatPassRateTable.value
+      : DEFAULT_CSAT_PASS_RATE_BENCHMARK
+
+    let initialSum = 0
+    let realSum = 0
+    let effectiveSum = 0
+    let passRateSum = 0
+    let count = 0
+
+    let gpaInitialSum = 0
+    let gpaRealSum = 0
+    let gpaEffectiveSum = 0
+    let gpaPassRateSum = 0
+    let gpaCount = 0
+
+    minApps.forEach(app => {
+      const normAppUniv = String(app.univName || '').replace(/\(.*\)/g, '').trim()
+      const normAppDept = String(app.dept || '').trim()
+      const normAppType = String(app.admissionDetailType || app.admissionType || '').trim()
+      const isGpa = normAppType.includes('교과') || String(app.admissionType || '').includes('교과')
+
+      let found = benchmarkList.find(item => {
+        const itemUniv = String(item.univName || '').replace(/\(.*\)/g, '').trim()
+        const itemDept = String(item.dept || '').trim()
+        const itemType = String(item.admissionType || '').trim()
+        return normAppUniv.includes(itemUniv) && 
+               (normAppDept.includes(itemDept) || itemDept.includes(normAppDept)) &&
+               (normAppType.includes(itemType) || itemType.includes(normAppType))
+      })
+
+      if (!found) {
+        found = benchmarkList.find(item => {
+          const itemUniv = String(item.univName || '').replace(/\(.*\)/g, '').trim()
+          const itemType = String(item.admissionType || '').trim()
+          const isUnivMatch = normAppUniv.includes(itemUniv) || itemUniv.includes(normAppUniv)
+          const isTypeMatch = (normAppType.includes('논술') && itemType.includes('논술')) ||
+                              (normAppType.includes('교과') && itemType.includes('교과')) ||
+                              (normAppType.includes('종합') && itemType.includes('종합'))
+          return isUnivMatch && isTypeMatch
+        })
+      }
+
+      if (!found) {
+        found = benchmarkList.find(item => {
+          const itemUniv = String(item.univName || '').replace(/\(.*\)/g, '').trim()
+          return normAppUniv.includes(itemUniv) || itemUniv.includes(normAppUniv)
+        })
+      }
+
+      let init = 0
+      let pass = 0
+      let fill = 100
+
+      if (found) {
+        init = Number(found.initialRate || 0)
+        pass = Number(found.passRate || 0)
+        fill = Number(found.fillRate || 100)
+      } else {
+        if (/논술/.test(normAppType)) {
+          init = 34.2
+          pass = 25.0
+          fill = 50
+        } else if (/한경|공주|충북|강원/.test(normAppUniv)) {
+          init = 6.8
+          pass = 38.0
+          fill = 130
+        } else if (/고려대|연세대|이화여대|한양대|경희대|세종대|숭실대/.test(normAppUniv)) {
+          init = 10.5
+          pass = 45.0
+          fill = 150
+        } else {
+          init = 7.8
+          pass = 37.4
+          fill = 120
+        }
+      }
+
+      if (init > 0) {
+        const real = init * (pass / 100)
+        const eff = real / (1 + fill / 100)
+        initialSum += init
+        realSum += real
+        effectiveSum += eff
+        passRateSum += pass
+        count++
+
+        if (isGpa) {
+          gpaInitialSum += init
+          gpaRealSum += real
+          gpaEffectiveSum += eff
+          gpaPassRateSum += pass
+          gpaCount++
+        }
+      }
+    })
+
+    const avgInitialRate = count > 0 ? Number((initialSum / count).toFixed(1)) : '-'
+    const avgRealRate = count > 0 ? Number((realSum / count).toFixed(1)) : '-'
+    const avgEffectiveRate = count > 0 ? Number((effectiveSum / count).toFixed(1)) : '-'
+    const avgPassRate = count > 0 ? Number((passRateSum / count).toFixed(1)) : '-'
+    const easeFactor = (typeof avgRealRate === 'number' && avgRealRate > 0) ? Number((avgInitialRate / avgRealRate).toFixed(1)) : '-'
+
+    const gpaInitialRate = gpaCount > 0 ? Number((gpaInitialSum / gpaCount).toFixed(1)) : '-'
+    const gpaRealRate = gpaCount > 0 ? Number((gpaRealSum / gpaCount).toFixed(1)) : '-'
+    const gpaEffectiveRate = gpaCount > 0 ? Number((gpaEffectiveSum / gpaCount).toFixed(1)) : '-'
+    const gpaPassRate = gpaCount > 0 ? Number((gpaPassRateSum / gpaCount).toFixed(1)) : '-'
+
+    const curYear = String(selectedAcademicYear.value || '2027')
+    const yearStats = MULTI_YEAR_STATS.byYear[curYear]
+    const schoolPassRate = (yearStats && yearStats.csatMinPassRate) ? yearStats.csatMinPassRate : 37.4
+
+    return {
+      totalMinApps: minApps.length,
+      avgInitialRate,
+      avgRealRate,
+      avgEffectiveRate,
+      gpaCount,
+      gpaInitialRate,
+      gpaRealRate,
+      gpaEffectiveRate,
+      avgPassRate,
+      gpaPassRate,
+      schoolPassRate,
+      easeFactor
+    }
+  })
+
   return {
     auth,
+    schoolMinScoreStats,
     applications,
     officialStats,
     selectedClass,
@@ -1095,6 +1327,7 @@ export function useStatData() {
     loadCustomData,
     maskName,
     formatGrade,
+    formatStudentCode,
     selectedAcademicYear,
     availableAcademicYears,
     selectedScope,

@@ -278,14 +278,19 @@
 
             <div class="mt-4 p-3 bg-amber-50/60 rounded-xl border border-amber-200/60 text-[11px] text-amber-800">
               <div class="font-semibold flex items-center">
-                <span class="mr-1">💡</span> 2027학년도 대입 포인트
+                <span class="mr-1">💡</span> {{ academicYearLabel }}학년도 대입 포인트
               </div>
               <div class="mt-1 text-amber-700 leading-relaxed">
                 <span v-if="selectedClass !== 'ALL' && selectedClass !== 'ENROLLED'">
                   {{ enrolledLabel }} 수시 지원 총 {{ currentStats.totalApps }}건 ({{ currentStats.totalStudents }}명) 중 수도권 {{ currentStats.metroRate }}%, 학교장추천 {{ currentStats.recApps }}건, 농어촌 {{ currentStats.ruralApps }}건 출원.
                 </span>
                 <span v-else>
-                  포곡고 농어촌 대상자 220명 중 123명(50%)이 실제 농어촌/기회균형 전형(276건)에 적극 출원하였습니다.
+                  <template v-if="currentStats.ruralApps > 0">
+                    농어촌/기회균형 전형에 총 {{ currentStats.ruralStudents }}명({{ currentStats.ruralStudentRate }}%)이 적극 출원(총 {{ currentStats.ruralApps }}건)하였습니다.
+                  </template>
+                  <template v-else>
+                    농어촌/기회균형 전형 출원 데이터가 없습니다.
+                  </template>
                 </span>
               </div>
             </div>
@@ -317,8 +322,11 @@ const {
   enrolledLabel,
   enrolledSubText,
   applicantLabel,
-  currentApplicantRate
+  currentApplicantRate,
+  selectedAcademicYear
 } = useData()
+
+const academicYearLabel = computed(() => selectedAcademicYear?.value || '2027')
 
 const getPercentage = (count) => {
   const total = currentStats.value.totalApps

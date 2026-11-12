@@ -1,7 +1,12 @@
 <template>
   <div class="space-y-6">
-    <!-- 🎯 2단계: 대학 그룹별 전형 심층 분석 & 합격률 비교 위젯 (보고서 5~6페이지 통합) -->
-    <UnivGroupPassRateWidget />
+    <!-- 🏛️ 1단계: 주요 대학 및 권역별 합격 인원 단순 표 (실적 집계 & 인쇄 최적화) -->
+    <UnivPassCountTableWidget />
+
+    <!-- 🖨️ 아래 2단계 분석 및 대학 목록은 현황표 인쇄 시 숨김 -->
+    <div class="space-y-6 no-print">
+      <!-- 🎯 2단계: 대학 그룹별 전형 심층 분석 & 합격률 비교 위젯 (보고서 5~6페이지 통합) -->
+      <UnivGroupPassRateWidget />
 
     <!-- 🏆 대학별 합격률 랭킹 위젯 (1~20위, 21~40위, 41~60위 구간 선택) -->
     <UnivPassRateRankingWidget @select-univ="handleSelectRankedUniv" />
@@ -175,6 +180,7 @@
         </table>
       </div>
     </div>
+    </div>
 
     <!-- University Detail Modal -->
     <UnivDetailModal 
@@ -190,6 +196,7 @@ import { ref, computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useData, formatGrade } from '../../composables/useStatData'
 import UnivDetailModal from '../StatUnivModal.vue'
+import UnivPassCountTableWidget from '../UnivPassCountTableWidget.vue'
 import UnivGroupPassRateWidget from '../UnivGroupPassRateWidget.vue'
 import UnivPassRateRankingWidget from '../UnivPassRateRankingWidget.vue'
 
