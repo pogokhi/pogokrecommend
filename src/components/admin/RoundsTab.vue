@@ -49,6 +49,15 @@
               :disabled="loading"
               @click="handleOpenRound"
             >+ 차수 추가</button>
+            <button
+              v-if="rounds.length > 1"
+              class="text-xs font-bold px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl shadow-sm transition-colors cursor-pointer disabled:opacity-40 flex items-center gap-1"
+              :disabled="loading"
+              @click="handleDeleteLatestRound"
+              :title="`${latestRoundId}차 선발일정 및 해당 차수 데이터를 완전히 삭제합니다`"
+            >
+              🗑️ {{ latestRoundId }}차 삭제
+            </button>
             <button @click="saveAllSchedules" class="text-xs font-bold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-colors cursor-pointer">
               💾 전체 일정 DB 저장
             </button>
@@ -81,12 +90,22 @@
                     </span>
                   </div>
                 </div>
-                <button
-                  @click="selectRound(r)"
-                  class="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-blue-200 flex items-center gap-1"
-                >
-                  🔍 지원 현황 및 추천 확정 보기 ➔
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    v-if="r.id === latestRoundId && rounds.length > 1"
+                    @click="handleDeleteLatestRound"
+                    class="text-xs font-semibold text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                    title="이 차수를 완전히 삭제하고 이전 차수로 되돌립니다"
+                  >
+                    🗑️ {{ r.id }}차 삭제
+                  </button>
+                  <button
+                    @click="selectRound(r)"
+                    class="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-blue-200 flex items-center gap-1"
+                  >
+                    🔍 지원 현황 및 추천 확정 보기 ➔
+                  </button>
+                </div>
               </div>
 
               <!-- 세부 일정(접수 / 협의 / 공지 기간) 입력 구역 -->
@@ -522,15 +541,16 @@
                   <table style="border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 1106px;">
                     <colgroup>
                       <col style="width: 36px;">
-                      <col style="width: 70px;">
-                      <col style="width: 140px;">
-                      <col style="width: 100px;">
-                      <col style="width: 90px;">
-                      <col style="width: 190px;">
-                      <col style="width: 90px;">
-                      <col style="width: 120px;">
+                      <col style="width: 65px;">
+                      <col style="width: 135px;">
+                      <col style="width: 95px;">
+                      <col style="width: 80px;">
+                      <col style="width: 180px;">
+                      <col style="width: 80px;">
                       <col style="width: 110px;">
-                      <col style="width: 160px;">
+                      <col style="width: 105px;">
+                      <col style="width: 135px;">
+                      <col style="width: 100px;">
                     </colgroup>
                     <thead>
                       <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
@@ -544,6 +564,7 @@
                         <th class="text-base font-semibold text-center" style="padding: 13px 18px; color: #475569;">추천</th>
                         <th class="text-base font-semibold text-center" style="padding: 13px 18px; color: #475569;">포기처리</th>
                         <th class="text-base font-semibold text-center" style="padding: 13px 18px; color: #475569;">미선발</th>
+                        <th class="text-base font-semibold text-center" style="padding: 13px 12px; color: #475569;">관리</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -681,29 +702,50 @@
                             <span v-else style="color: #cbd5e1;">-</span>
                             </div>
                           </td>
+                          <td class="text-center" style="padding: 12px 10px;" @click.stop>
+                            <button
+                              type="button"
+                              class="text-xs font-semibold rounded-lg whitespace-nowrap shadow-xs hover:bg-rose-100 transition-colors"
+                              style="padding: 4px 9px; border: 1px solid #fda4af; background: #fff1f2; color: #e11d48; cursor: pointer;"
+                              @click="handleAdminDeleteApp(r)"
+                              title="해당 학생의 본 지원 신청을 완전히 삭제합니다"
+                            >
+                              🗑️ 삭제
+                            </button>
+                          </td>
                         </tr>
                         <!-- 전형요소 점수 상세 및 차수 요약 -->
                         <tr v-if="expandedRows[`${r.student_id}-${r.track_id}`]"
                           style="border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
-                          <td colspan="10" style="padding: 14px 36px;">
+                          <td colspan="11" style="padding: 14px 36px;">
                             <div class="flex flex-col gap-2">
-                              <div v-if="totalRounds > 1 || r.round === 0 || r.round_id === 0" class="flex items-center gap-3 text-xs pb-2 border-b border-slate-200/80 flex-wrap">
-                                <span class="font-bold text-slate-700">📌 차수 정보:</span>
-                                <span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
-                                  지원: {{ (r.round === 0 || r.round_id === 0) ? '사전 접수' : `${r.round || r.round_id || selected?.id}차 지원` }}
-                                </span>
-                                <span v-if="r.recommended" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                                  선발: {{ (r.recommended_round === 0 || r.round === 0) ? '사전 추천 확정됨' : `${r.recommended_round || r.round || r.round_id || selected?.id}차 추천 확정됨` }}
-                                </span>
-                                <span v-else-if="r.abandoned" class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200">
-                                  포기: {{ (r.abandoned_round === 0 || r.round === 0) ? '사전 포기 처리됨' : `${r.abandoned_round || r.round || r.round_id || selected?.id}차 포기 처리됨` }}
-                                </span>
-                                <span v-else-if="r.excluded" class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200">
-                                  미선발: {{ (r.round === 0 || r.round_id === 0) ? '사전 제외' : `${r.round || r.round_id || selected?.id}차 제외` }} ({{ r.excluded_reason || '사유 없음' }})
-                                </span>
-                                <span v-else-if="selected.status === 'FINALIZED'" class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
-                                  선발 결과: {{ (r.round === 0 || r.round_id === 0) ? '사전 미선발' : `${r.round || r.round_id || selected?.id}차 미선발` }}
-                                </span>
+                              <div v-if="totalRounds > 1 || r.round === 0 || r.round_id === 0" class="flex items-center justify-between gap-3 text-xs pb-2 border-b border-slate-200/80 flex-wrap">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                  <span class="font-bold text-slate-700">📌 차수 정보:</span>
+                                  <span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                                    지원: {{ (r.round === 0 || r.round_id === 0) ? '사전 접수' : `${r.round || r.round_id || selected?.id}차 지원` }}
+                                  </span>
+                                  <span v-if="r.recommended" class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                                    선발: {{ (r.recommended_round === 0 || r.round === 0) ? '사전 추천 확정됨' : `${r.recommended_round || r.round || r.round_id || selected?.id}차 추천 확정됨` }}
+                                  </span>
+                                  <span v-else-if="r.abandoned" class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200">
+                                    포기: {{ (r.abandoned_round === 0 || r.round === 0) ? '사전 포기 처리됨' : `${r.abandoned_round || r.round || r.round_id || selected?.id}차 포기 처리됨` }}
+                                  </span>
+                                  <span v-else-if="r.excluded" class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200">
+                                    미선발: {{ (r.round === 0 || r.round_id === 0) ? '사전 제외' : `${r.round || r.round_id || selected?.id}차 제외` }} ({{ r.excluded_reason || '사유 없음' }})
+                                  </span>
+                                  <span v-else-if="selected.status === 'FINALIZED'" class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                                    선발 결과: {{ (r.round === 0 || r.round_id === 0) ? '사전 미선발' : `${r.round || r.round_id || selected?.id}차 미선발` }}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  @click.stop="handleAdminDeleteApp(r)"
+                                  class="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ml-auto"
+                                  title="해당 학생의 본 지원 신청을 완전히 삭제합니다"
+                                >
+                                  🗑️ 이 지원 내역 완전 삭제
+                                </button>
                               </div>
                               <div class="flex flex-wrap gap-x-6 gap-y-2">
                                 <div v-for="area in areas" :key="area.id" class="flex items-center gap-2">
@@ -1000,32 +1042,137 @@
           </div>
 
           <!-- 2. 대상 대학 및 전형 선택 -->
-          <div class="space-y-1.5">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
               <label class="block text-xs font-bold text-slate-700">2. 대상 대학 및 전형 <span class="text-rose-500">*</span></label>
-              <span class="text-[11px] text-slate-400">총 {{ filteredExtraAppUnivList.length }}개 전형</span>
+              <button
+                type="button"
+                class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1 cursor-pointer transition-colors"
+                @click="extraAppIsCustomUniv = !extraAppIsCustomUniv"
+              >
+                {{ extraAppIsCustomUniv ? '📋 목록에서 선택하기로 전환' : '✏️ 목록에 없는 대학 직접 입력' }}
+              </button>
             </div>
-            <input
-              v-model="extraAppUnivSearch"
-              type="text"
-              placeholder="대학명 또는 전형명 검색 (예: 육군사관, 서울대 등)..."
-              class="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-            <select
-              v-model="extraAppSelectedUnivId"
-              class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
-            >
-              <option value="" disabled>-- 대학 및 전형을 선택하세요 --</option>
-              <option v-for="u in filteredExtraAppUnivList" :key="u.id" :value="u.id">
-                {{ u.univ_name }} [{{ u.track_name }}] {{ u.remarks_tag ? `[${u.remarks_tag}] ` : '' }}{{ u.has_quota ? `(정원 ${u.quota_limit}명 / 확정 ${u.currentRecCount}명)` : '(인원 제한 없음)' }}
-              </option>
-            </select>
-            <div v-if="selectedExtraAppUniv" class="text-[11px] text-slate-500 flex items-center justify-between pt-0.5">
-              <span>졸업생 지원: <strong>{{ selectedExtraAppUniv.grad_allowed ? '가능' : '재학생 전용' }}</strong></span>
-              <span v-if="selectedExtraAppUniv.has_quota" :class="selectedExtraAppUniv.currentRecCount >= selectedExtraAppUniv.quota_limit ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold'">
-                정원 현황: {{ selectedExtraAppUniv.currentRecCount }} / {{ selectedExtraAppUniv.quota_limit }}명
-                {{ selectedExtraAppUniv.currentRecCount >= selectedExtraAppUniv.quota_limit ? '(정원 마감 상태)' : `(잔여 ${selectedExtraAppUniv.quota_limit - selectedExtraAppUniv.currentRecCount}명)` }}
-              </span>
+
+            <!-- 목록 선택 모드 -->
+            <div v-if="!extraAppIsCustomUniv" class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <input
+                  v-model="extraAppUnivSearch"
+                  type="text"
+                  placeholder="대학명 또는 전형명 검색 (예: 육군사관, 서울대 등)..."
+                  class="w-full text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+
+              <!-- 검색 결과가 없을 때 안내 및 직접 입력 전환 버튼 -->
+              <div
+                v-if="filteredExtraAppUnivList.length === 0"
+                class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center justify-between gap-2"
+              >
+                <span class="truncate">'{{ extraAppUnivSearch }}'에 해당하는 대학/전형이 없습니다.</span>
+                <button
+                  type="button"
+                  class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors"
+                  @click="enableCustomUnivWithSearch"
+                >
+                  ➕ 직접 입력으로 전환
+                </button>
+              </div>
+
+              <select
+                v-else
+                v-model="extraAppSelectedUnivId"
+                class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+              >
+                <option value="" disabled>-- 대학 및 전형을 선택하세요 (총 {{ filteredExtraAppUnivList.length }}개) --</option>
+                <option v-for="u in filteredExtraAppUnivList" :key="u.id" :value="u.id">
+                  {{ u.univ_name }} [{{ u.track_name }}] {{ u.remarks_tag ? `[${u.remarks_tag}] ` : '' }}{{ u.has_quota ? `(정원 ${u.quota_limit}명 / 확정 ${u.currentRecCount}명)` : '(인원 제한 없음)' }}
+                </option>
+              </select>
+
+              <div v-if="selectedExtraAppUniv" class="text-[11px] text-slate-500 flex items-center justify-between pt-0.5">
+                <span>졸업생 지원: <strong>{{ selectedExtraAppUniv.grad_allowed ? '가능' : '재학생 전용' }}</strong></span>
+                <span v-if="selectedExtraAppUniv.has_quota" :class="selectedExtraAppUniv.currentRecCount >= selectedExtraAppUniv.quota_limit ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold'">
+                  정원 현황: {{ selectedExtraAppUniv.currentRecCount }} / {{ selectedExtraAppUniv.quota_limit }}명
+                  {{ selectedExtraAppUniv.currentRecCount >= selectedExtraAppUniv.quota_limit ? '(정원 마감 상태)' : `(잔여 ${selectedExtraAppUniv.quota_limit - selectedExtraAppUniv.currentRecCount}명)` }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 목록 외 직접 입력 모드 -->
+            <div v-else class="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-xl space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                  ✏️ 목록에 없는 대학/전형 직접 입력
+                </span>
+                <span class="text-[10px] text-indigo-500 font-medium">관리자 직권 대학 생성</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-700">대학명 <span class="text-rose-500">*</span></label>
+                  <input
+                    v-model="extraAppCustomUnivName"
+                    type="text"
+                    placeholder="예: 경찰대학, 육군사관학교 등"
+                    class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-700">전형명 <span class="text-rose-500">*</span></label>
+                  <input
+                    v-model="extraAppCustomTrackName"
+                    type="text"
+                    placeholder="예: 일반전형, 특별전형 등"
+                    class="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 pt-0.5">
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-700">전형 유형</label>
+                  <select
+                    v-model="extraAppCustomTrackType"
+                    class="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                  >
+                    <option value="기타">기타</option>
+                    <option value="교과">교과</option>
+                    <option value="종합">종합</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-700">정원 제한</label>
+                  <select
+                    v-model="extraAppCustomHasQuota"
+                    class="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                  >
+                    <option :value="false">제한 없음</option>
+                    <option :value="true">정원 있음</option>
+                  </select>
+                </div>
+                <div v-if="extraAppCustomHasQuota" class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-700">정원(명)</label>
+                  <input
+                    v-model.number="extraAppCustomQuota"
+                    type="number"
+                    min="1"
+                    placeholder="예: 2"
+                    class="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div v-else class="space-y-1 flex items-end pb-1.5">
+                  <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      v-model="extraAppCustomGradAllowed"
+                      type="checkbox"
+                      class="rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                    />
+                    <span>졸업생 지원 허용</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1046,7 +1193,7 @@
               <label class="block text-xs font-bold text-slate-700">4. 배정 선발 차수</label>
               <select
                 v-model.number="extraAppRound"
-                class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer font-bold text-indigo-700"
+                class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white font-bold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
               >
                 <option :value="0">사전 접수</option>
                 <option v-for="n in totalRounds" :key="n" :value="n">{{ n }}차 접수</option>
@@ -1081,7 +1228,7 @@
           <button
             class="text-xs font-bold rounded-lg whitespace-nowrap text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 cursor-pointer"
             style="padding: 9px 18px; border: none;"
-            :disabled="extraAppSubmitting || !extraAppSelectedStudent || !extraAppSelectedUnivId"
+            :disabled="extraAppSubmitting || !extraAppSelectedStudent || (!extraAppIsCustomUniv && !extraAppSelectedUnivId) || (extraAppIsCustomUniv && !extraAppCustomUnivName.trim())"
             @click="submitAdminExtraApplication"
           >
             {{ extraAppSubmitting ? '등록 중...' : '추천 추가 입력 확정' }}
@@ -1097,6 +1244,7 @@ import { ref, computed, watch, onMounted, inject } from 'vue'
 import { supabase } from '../../utils/supabaseClient.js'
 import {
   getRounds, openRound, closeRound, reopenRound, finalizeRound,
+  deleteLatestRound, adminDeleteApplication,
   updateRoundStatus,
   calculateScores, getResults, recommendResult, unrecommendResult,
   getApplications, abandonApplication,
@@ -1155,6 +1303,11 @@ const selected  = ref(null)
 const loading   = ref(false)
 const view      = ref('apps')
 const totalRounds = ref(3) // 1~5, default 3
+
+const latestRoundId = computed(() => {
+  if (!rounds.value || rounds.value.length === 0) return 1
+  return Math.max(...rounds.value.map(r => Number(r.id) || 0))
+})
 
 function formatKoreanDate(dateStr) {
   if (!dateStr) return '일정 미선택'
@@ -1884,6 +2037,60 @@ async function handleOpenRound() {
   }
 }
 
+async function handleDeleteLatestRound() {
+  if (loading.value || roundActing.value) return
+  const targetId = latestRoundId.value
+  if (targetId <= 1) {
+    await dialog.alert({ title: '안내', message: '1차 선발일정은 삭제할 수 없습니다.', level: 'warn' })
+    return
+  }
+
+  // 해당 차수에 등록된 지원서 수 확인
+  let appCount = 0
+  if (supabase) {
+    try {
+      const { count } = await supabase
+        .from('applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('round', targetId)
+      appCount = count || 0
+    } catch {}
+  }
+
+  const warnMsg = appCount > 0
+    ? `정말로 [${targetId}차 선발일정]을 완전히 삭제하시겠습니까?\n\n⚠️ 주의: ${targetId}차에 등록된 학생 지원서 ${appCount}건도 함께 영구 삭제됩니다.\n삭제 후에는 이전 차수(${targetId - 1}차)로 선발 일정이 자동 복원됩니다.`
+    : `정말로 [${targetId}차 선발일정]을 삭제하시겠습니까?\n삭제 후에는 이전 차수(${targetId - 1}차)로 선발 일정이 복원됩니다.`
+
+  if (!(await dialog.confirm({
+    title: `${targetId}차 선발일정 삭제`,
+    message: warnMsg,
+    confirmText: `${targetId}차 삭제 확정`,
+    level: 'danger',
+    dangerNotice: '삭제된 선발 차수와 지원 내역은 되돌릴 수 없습니다.'
+  }))) return
+
+  loading.value = true
+  try {
+    const res = await deleteLatestRound(targetId)
+    await loadTotalRounds()
+    await loadSchedules()
+    await loadRounds()
+    if (selected.value?.id === targetId) {
+      selected.value = null
+    }
+    await refreshSidebarRound()
+    await dialog.alert({
+      title: '삭제 완료',
+      message: `${targetId}차 선발일정이 정상적으로 삭제되었습니다.\n(총 선발 회수: ${res.newTotalRounds}차로 원복됨)`,
+      level: 'info'
+    })
+  } catch (e) {
+    await dialog.alert({ title: '오류', message: e.message || '차수 삭제 도중 오류가 발생했습니다.', level: 'error' })
+  } finally {
+    loading.value = false
+  }
+}
+
 async function handleCloseRound(id) {
   if (roundActing.value) return
 
@@ -2324,6 +2531,39 @@ async function handleUnrecommend(r) {
   }
 }
 
+async function handleAdminDeleteApp(r) {
+  if (resultActing.value) return
+  const studentName = r.name || '해당 학생'
+  const univInfo = `${r.univ_name || ''} ${r.track_name || ''} (${r.department_name || ''})`.trim()
+  const roundText = (r.round === 0 || r.round_id === 0) ? '사전 선발' : `${r.round || r.round_id || selected.value?.id}차`
+
+  const confirmMsg = `${studentName} 학생의 [${univInfo}] ${roundText} 추천 지원 내역을 완전히 삭제하시겠습니까?\n\n※ 지원 신청서가 영구 삭제되며, 학생의 기본 학적 및 성적 데이터는 안전하게 유지됩니다.`
+
+  if (!(await dialog.confirm({
+    title: '추천 지원 내역 삭제',
+    message: confirmMsg,
+    confirmText: '지원 내역 삭제',
+    level: 'danger',
+    dangerNotice: '이 작업은 되돌릴 수 없으며, 해당 지원 신청이 완전히 삭제됩니다.'
+  }))) return
+
+  resultActing.value = true
+  try {
+    await adminDeleteApplication(r.id, r.student_id, r.track_id, r.round || r.round_id || selected.value?.id)
+    await loadResults()
+    await loadApps()
+    await dialog.alert({
+      title: '삭제 완료',
+      message: `${studentName} 학생의 지원 내역이 정상적으로 삭제되었습니다.`,
+      level: 'info'
+    })
+  } catch (e) {
+    await dialog.alert({ title: '오류', message: e.message || '지원 내역 삭제 중 오류가 발생했습니다.', level: 'error' })
+  } finally {
+    resultActing.value = false
+  }
+}
+
 function getLatestReachedRound() {
   if (rounds.value.length === 0) return null
   const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
@@ -2389,6 +2629,30 @@ const extraAppIsRecommend = ref(true)
 const extraAppLoading = ref(false)
 const extraAppSubmitting = ref(false)
 
+// 목록 외 직접 입력 관련 상태
+const extraAppIsCustomUniv = ref(false)
+const extraAppCustomUnivName = ref('')
+const extraAppCustomTrackName = ref('학교장추천')
+const extraAppCustomTrackType = ref('기타')
+const extraAppCustomHasQuota = ref(false)
+const extraAppCustomQuota = ref(null)
+const extraAppCustomGradAllowed = ref(true)
+
+function enableCustomUnivWithSearch() {
+  extraAppIsCustomUniv.value = true
+  extraAppCustomUnivName.value = extraAppUnivSearch.value.trim()
+}
+
+// 검색어 변경 시 이전에 선택했던 대학이 필터링되어 사라지면 자동 선택 해제 (엉뚱한 대학 자동 배정 방지)
+watch(extraAppUnivSearch, () => {
+  if (extraAppSelectedUnivId.value) {
+    const stillExists = filteredExtraAppUnivList.value.some(u => u.id === extraAppSelectedUnivId.value)
+    if (!stillExists) {
+      extraAppSelectedUnivId.value = ''
+    }
+  }
+})
+
 async function openAdminExtraApplicationModal() {
   extraAppStudentSearch.value = ''
   extraAppUnivSearch.value = ''
@@ -2397,6 +2661,13 @@ async function openAdminExtraApplicationModal() {
   extraAppDeptName.value = ''
   extraAppRound.value = totalRounds.value || 1
   extraAppIsRecommend.value = true
+  extraAppIsCustomUniv.value = false
+  extraAppCustomUnivName.value = ''
+  extraAppCustomTrackName.value = '학교장추천'
+  extraAppCustomTrackType.value = '기타'
+  extraAppCustomHasQuota.value = false
+  extraAppCustomQuota.value = null
+  extraAppCustomGradAllowed.value = true
   showAdminExtraAppModal.value = true
 
   extraAppLoading.value = true
@@ -2585,14 +2856,77 @@ async function submitAdminExtraApplication() {
     await dialog.alert({ title: '입력 확인', message: '대상 학생을 선택해 주세요.', level: 'warn' })
     return
   }
-  if (!extraAppSelectedUnivId.value) {
-    await dialog.alert({ title: '입력 확인', message: '지원 대학 및 전형을 선택해 주세요.', level: 'warn' })
+
+  let un = null
+
+  // 1. 목록 외 직접 입력 모드 처리
+  if (extraAppIsCustomUniv.value) {
+    const customUniv = extraAppCustomUnivName.value.trim()
+    if (!customUniv) {
+      await dialog.alert({ title: '입력 확인', message: '대학명을 입력해 주세요.', level: 'warn' })
+      return
+    }
+    const customTrack = extraAppCustomTrackName.value.trim() || '학교장추천'
+    const customType = extraAppCustomTrackType.value || '기타'
+    const customGrad = extraAppCustomGradAllowed.value
+    const customHasQuota = extraAppCustomHasQuota.value
+    const customQuota = customHasQuota ? (Number(extraAppCustomQuota.value) || null) : null
+
+    // 기존 universities에 이미 존재하는지 정규화 키로 대조
+    const normKey = (u, t) => `${(u || '').trim().replace(/\s+/g, '')}__${(t || '').trim().replace(/\s+/g, '')}`
+    un = extraAppUnivList.value.find(u => normKey(u.univ_name, u.track_name) === normKey(customUniv, customTrack))
+
+    if (!un) {
+      // DB에서 직접 조회 확인
+      const { data: dbUniv } = await supabase
+        .from('universities')
+        .select('*')
+        .eq('univ_name', customUniv)
+        .eq('track_name', customTrack)
+        .maybeSingle()
+
+      if (dbUniv) {
+        un = dbUniv
+      } else {
+        // universities 테이블에 신규 등록
+        const newUnivPayload = {
+          univ_name: customUniv,
+          track_name: customTrack,
+          track_type: customType,
+          grad_allowed: customGrad,
+          has_quota: customHasQuota,
+          quota_limit: customQuota,
+          csat_min: 'X',
+          remarks: JSON.stringify({ is_custom: true, created_by: 'admin_extra_app' })
+        }
+        const { data: insertedUniv, error: insUnivErr } = await supabase
+          .from('universities')
+          .insert(newUnivPayload)
+          .select()
+          .single()
+
+        if (insUnivErr) {
+          throw new Error('신규 대학/전형 생성 실패: ' + (insUnivErr.message || insUnivErr))
+        }
+        un = insertedUniv
+      }
+    }
+  } else {
+    // 2. 목록 선택 모드 처리
+    if (!extraAppSelectedUnivId.value) {
+      await dialog.alert({ title: '입력 확인', message: '지원 대학 및 전형을 선택해 주세요.', level: 'warn' })
+      return
+    }
+    un = selectedExtraAppUniv.value
+  }
+
+  if (!un) {
+    await dialog.alert({ title: '입력 확인', message: '선택된 대학 및 전형 정보를 확인할 수 없습니다.', level: 'warn' })
     return
   }
-  const dept = extraAppDeptName.value.trim() || '-'
 
+  const dept = extraAppDeptName.value.trim() || '-'
   const st = extraAppSelectedStudent.value
-  const un = selectedExtraAppUniv.value
   const rd = extraAppRound.value
   const roundLabel = rd === 0 ? '사전 접수' : `${rd}차 접수`
   const roundTargetText = rd === 0 ? '사전 접수에' : `${rd}차에`
@@ -2634,7 +2968,8 @@ async function submitAdminExtraApplication() {
     }
   }
 
-  const confirmMsg = `다음 학생의 학교장추천을 ${extraAppIsRecommend.value ? '추천 확정(선정)' : '지원서 등록'}으로 추가 입력하시겠습니까?\n\n- 학생: ${st.decryptedName} (${st.student_code} / ${st.grade}학년 ${st.class_no}반)\n- 대학: ${un.univ_name} (${un.track_name})\n- 학과: ${dept}\n- 차수: ${roundLabel}\n- 선발 상태: ${extraAppIsRecommend.value ? '🟢 즉시 추천 확정' : '대기(지원서만 등록)'}${quotaWarn}`
+  const customTag = extraAppIsCustomUniv.value ? ' [목록 외 직접입력]' : ''
+  const confirmMsg = `다음 학생의 학교장추천을 ${extraAppIsRecommend.value ? '추천 확정(선정)' : '지원서 등록'}으로 추가 입력하시겠습니까?\n\n- 학생: ${st.decryptedName} (${st.student_code} / ${st.grade}학년 ${st.class_no}반)\n- 대학: ${un.univ_name} (${un.track_name})${customTag}\n- 학과: ${dept}\n- 차수: ${roundLabel}\n- 선발 상태: ${extraAppIsRecommend.value ? '🟢 즉시 추천 확정' : '대기(지원서만 등록)'}${quotaWarn}`
 
   if (!(await dialog.confirm({
     title: '학추 추가 입력 확인',
@@ -2677,7 +3012,7 @@ async function submitAdminExtraApplication() {
     await Promise.all([loadRounds(), loadApps(), loadResults()])
     await dialog.alert({
       title: '등록 성공',
-      message: `${st.decryptedName} 학생의 ${un.univ_name} 학교장추천이 정상적으로 추가 등록되었습니다.`,
+      message: `${st.decryptedName} 학생의 ${un.univ_name} (${un.track_name}) 학교장추천이 정상적으로 추가 등록되었습니다.`,
       level: 'success'
     })
   } catch (e) {
